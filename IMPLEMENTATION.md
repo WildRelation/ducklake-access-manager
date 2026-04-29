@@ -191,11 +191,15 @@ ssh -L 3903:localhost:3903 ducklake-garage@deploy.cloud.cbh.kth.se
 
 **Steg 2 – Hämta Garage Admin Token**
 
-SSH:a in i Garage-containern och leta upp token:
+SSH:a in i Garage-containern och hämta det exakta token-värdet från den genererade konfigurationen:
 ```bash
 ssh ducklake-garage@deploy.cloud.cbh.kth.se
-cat /etc/garage/garage.toml | grep admin_token
+cat /tmp/garage.toml | grep admin_token
 ```
+
+> ⚠️ Använd alltid `/tmp/garage.toml`, inte `/etc/garage.toml`.
+> `/tmp/garage.toml` är den faktiska config som Garage kör med (efter `envsubst`).
+> Värdena kan skilja sig åt om token kopierats fel vid inmatning i cbhcloud.
 
 **Steg 3 – Konfigurera `.env`**
 
@@ -206,22 +210,26 @@ cp .env.example .env
 Fyll i `.env` med dina värden:
 ```env
 POSTGRES_HOST=127.0.0.1
-POSTGRES_PORT=5432
+POSTGRES_PORT=5433
 POSTGRES_DB=ducklake
 POSTGRES_ADMIN_USER=ducklake
 POSTGRES_ADMIN_PASSWORD=cbhcloud
 
 GARAGE_ADMIN_URL=http://127.0.0.1:3903
-GARAGE_ADMIN_TOKEN=<token från garage.toml>
-GARAGE_S3_ENDPOINT=https://ducklake-garage.deploy.cloud.cbh.kth.se
+GARAGE_ADMIN_TOKEN=<token från /tmp/garage.toml>
+GARAGE_S3_ENDPOINT=https://ducklake-garage.cbh.kth.se
 
 PORT=8080
 ```
 
+> ⚠️ Port 5432 kan vara upptagen lokalt (PostgreSQL installerat). Använd då 5433 i tunneln:
+> `ssh -L 5433:localhost:5432 ducklake-catalog@deploy.cloud.cbh.kth.se`
+
 **Steg 4 – Starta tjänsten**
 
 ```bash
-export $(cat .env | xargs)
+# Filtrera bort kommentarer från .env innan export
+export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
 mvn spring-boot:run
 ```
 
