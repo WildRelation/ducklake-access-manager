@@ -3,6 +3,7 @@ package com.ducklake.accessmanager.api;
 import com.ducklake.accessmanager.interfaces.DatabaseAccessTokenManager;
 import com.ducklake.accessmanager.interfaces.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.model.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,10 +32,16 @@ public class KeyController {
 
     private final ObjectStoreAccessTokenManager objectStore;
     private final DatabaseAccessTokenManager database;
+    private final String postgresPublicHost;
 
-    public KeyController(ObjectStoreAccessTokenManager objectStore, DatabaseAccessTokenManager database) {
+    public KeyController(
+        ObjectStoreAccessTokenManager objectStore,
+        DatabaseAccessTokenManager database,
+        @Value("${postgres.public.host}") String postgresPublicHost
+    ) {
         this.objectStore = objectStore;
         this.database = database;
+        this.postgresPublicHost = postgresPublicHost;
     }
 
     /**
@@ -62,7 +69,7 @@ public class KeyController {
             default -> database.createReadOnlyUser(request.bucketName());
         };
 
-        String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName());
+        String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
         return ResponseEntity.ok(new GeneratedCredentials(s3Key, dbCreds, script));
     }
 
@@ -88,7 +95,7 @@ public class KeyController {
     }
 
     // Bygger ett färdigt DuckDB-script med de genererade nycklarna
-    private String buildDuckdbScript(AccessKey s3Key, DbCredentials db, String bucketName) {
+    private String buildDuckdbScript(AccessKey s3Key, DbCredentials db, String bucketName, String pgHost) {
         return """
             INSTALL ducklake;
             INSTALL postgres;
@@ -122,7 +129,7 @@ public class KeyController {
 
             USE my_ducklake;
             """.formatted(
-                db.host(), db.port(), db.database(), db.username(), db.password(),
+                pgHost, db.port(), db.database(), db.username(), db.password(),
                 s3Key.keyId(), s3Key.secretKey(), s3Key.endpoint(),
                 db.database(), bucketName
         );
