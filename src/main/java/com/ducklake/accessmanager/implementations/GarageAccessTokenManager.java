@@ -147,10 +147,13 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         );
     }
 
-    // Skapar HTTP-headers med Bearer-autentisering för alla anrop mot Admin API:n
+    // Skapar HTTP-headers för Admin API-anrop.
+    // Bearer-token inkluderas bara om GARAGE_ADMIN_TOKEN är konfigurerat.
     private HttpHeaders authHeaders() {
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(adminToken);
+        if (adminToken != null && !adminToken.isBlank()) {
+            headers.setBearerAuth(adminToken);
+        }
         headers.setContentType(MediaType.APPLICATION_JSON);
         return headers;
     }
