@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir \
+    duckdb \
+    jupyterlab \
+    pandas \
+    pyarrow
+
+# Pre-install ducklake and postgres extensions
+RUN python3 -c "\
+import duckdb; \
+con = duckdb.connect(); \
+con.execute('INSTALL ducklake'); \
+con.execute('INSTALL postgres'); \
+con.close()"
+
+EXPOSE 8888
+
+CMD ["jupyter", "lab", \
+     "--ip=0.0.0.0", \
+     "--port=8888", \
+     "--no-browser", \
+     "--NotebookApp.token=''", \
+     "--NotebookApp.password=''"]

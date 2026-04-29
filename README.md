@@ -45,10 +45,81 @@ Istället för att dela ut credentials manuellt kan användare besöka webbgrän
 
 1. Besök `https://ducklake-access-manager.app.cloud.cbh.kth.se/` i webbläsaren
 2. Välj bucket och behörighet → klicka **Generate Key** → kopiera DuckDB-scriptet
-3. Skapa ett eget deployment på kthcloud (t.ex. Jupyter notebook eller Python-app)
+3. Skapa ett eget deployment på kthcloud (se [Student deployment guide](#student-deployment-guide) nedan)
 4. Kör DuckDB-scriptet **inifrån det deploymentet** — inte lokalt på din dator
 
 Hostname `ducklake-catalog` är bara nåbar inom cbhcloud-clustret.
+
+---
+
+## Student deployment guide
+
+Så här skapar du ett eget Python/Jupyter-deployment på cbhcloud där du kan köra DuckDB-scriptet.
+
+### 1. Skapa ett nytt deployment på cbhcloud
+
+Gå till [cloud.cbh.kth.se](https://cloud.cbh.kth.se) och skapa ett nytt deployment med följande inställningar:
+
+| Fält | Värde |
+|---|---|
+| Image tag | `ghcr.io/wildrelation/ducklake-student:latest` |
+| PORT | `8888` |
+| Visibility | `Public` |
+
+> Imagen innehåller JupyterLab + DuckDB + ducklake-extension förinstallerat.
+
+### 2. Öppna JupyterLab
+
+När deploymentet är igång, klicka **Visit** i cbhcloud — det öppnar JupyterLab i webbläsaren.
+
+### 3. Hämta dina nycklar
+
+Besök `https://ducklake-access-manager.app.cloud.cbh.kth.se/`, generera en nyckel och kopiera DuckDB-scriptet.
+
+### 4. Kör scriptet
+
+Skapa en ny notebook i JupyterLab och kör:
+
+```python
+import duckdb
+
+con = duckdb.connect()
+con.execute("""
+    -- klistra in scriptet härifrån --
+    INSTALL ducklake;
+    INSTALL postgres;
+    LOAD ducklake;
+    LOAD postgres;
+
+    CREATE OR REPLACE SECRET ( TYPE postgres, HOST 'ducklake-catalog', ... );
+    CREATE OR REPLACE SECRET garage_secret ( TYPE s3, ... );
+    ATTACH 'ducklake:postgres:dbname=ducklake' AS my_ducklake (DATA_PATH 's3://ducklake/');
+    USE my_ducklake;
+""")
+
+# Kör nu queries mot DuckLake
+result = con.execute("SELECT * FROM my_table LIMIT 10").fetchdf()
+print(result)
+```
+
+### Alternativ: SSH + Python (utan Jupyter)
+
+Om du hellre vill köra direkt från terminalen:
+
+```bash
+# Anslut till ditt deployment
+ssh ditt-deployment@deploy.cloud.cbh.kth.se
+
+# Installera duckdb om det inte redan finns
+pip install duckdb
+
+# Kör ett Python-script
+python3 - <<'EOF'
+import duckdb
+con = duckdb.connect()
+con.execute("INSTALL ducklake; LOAD ducklake; ...")
+EOF
+```
 
 ---
 
