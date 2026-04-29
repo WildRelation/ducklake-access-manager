@@ -5,5 +5,6 @@ public record AccessKey(
     String secretKey,
     String bucketName,
     String permission,
-    String endpoint
+    String endpoint,
+    String region
 ) {}

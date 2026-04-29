@@ -120,7 +120,7 @@ public class KeyController {
                 PROVIDER config,
                 KEY_ID '%s',
                 SECRET '%s',
-                REGION 'local',
+                REGION '%s',
                 ENDPOINT '%s',
                 URL_STYLE 'path',
                 USE_SSL false
@@ -134,7 +134,7 @@ public class KeyController {
             """.formatted(
                 pgHost,
                 pgHost, db.port(), db.database(), db.username(), db.password(),
-                s3Key.keyId(), s3Key.secretKey(), s3Key.endpoint(),
+                s3Key.keyId(), s3Key.secretKey(), s3Key.region(), s3Key.endpoint(),
                 db.database(), bucketName
         );
     }

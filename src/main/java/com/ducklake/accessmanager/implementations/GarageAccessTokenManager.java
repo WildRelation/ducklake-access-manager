@@ -34,16 +34,19 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     private final String adminApiUrl;
     private final String adminToken;
     private final String garageEndpoint;
+    private final String garageRegion;
 
     public GarageAccessTokenManager(
         @Value("${garage.admin.url}") String adminApiUrl,
         @Value("${garage.admin.token}") String adminToken,
-        @Value("${garage.s3.endpoint}") String garageEndpoint
+        @Value("${garage.s3.endpoint}") String garageEndpoint,
+        @Value("${garage.s3.region}") String garageRegion
     ) {
         this.restTemplate = new RestTemplate();
         this.adminApiUrl = adminApiUrl;
         this.adminToken = adminToken;
         this.garageEndpoint = garageEndpoint;
+        this.garageRegion = garageRegion;
     }
 
     /**
@@ -93,7 +96,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         );
 
         return Arrays.stream(response.getBody())
-            .map(item -> new AccessKey(item.id(), null, item.name(), null, garageEndpoint))
+            .map(item -> new AccessKey(item.id(), null, item.name(), null, garageEndpoint, garageRegion))
             .toList();
     }
 
@@ -106,7 +109,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         grantBucketPermission(bucketId, created.accessKeyId(), allowWrite);
 
         String permission = allowWrite ? "readwrite" : "read";
-        return new AccessKey(created.accessKeyId(), created.secretAccessKey(), bucketName, permission, garageEndpoint);
+        return new AccessKey(created.accessKeyId(), created.secretAccessKey(), bucketName, permission, garageEndpoint, garageRegion);
     }
 
     // Steg 1: POST /v2/CreateKey – skapar nyckeln och returnerar accessKeyId + secretAccessKey

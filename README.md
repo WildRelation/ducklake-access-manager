@@ -287,10 +287,13 @@ docker push ghcr.io/wildrelation/ducklake-access-manager:latest
 | `POSTGRES_ADMIN_PASSWORD` | `cbhcloud` |
 | `GARAGE_ADMIN_URL` | `http://ducklake-garage:3900` |
 | `GARAGE_ADMIN_TOKEN` | token från `/tmp/garage.toml` i ducklake-garage |
-| `GARAGE_S3_ENDPOINT` | `https://ducklake-garage.deploy.cloud.cbh.kth.se` |
+| `GARAGE_S3_ENDPOINT` | `ducklake-garage:3900` |
+| `GARAGE_S3_REGION` | `garage` |
 | `PORT` | `8080` |
 
 > `GARAGE_ADMIN_URL` pekar på port **3900** (nginx), inte 3903.
+> `GARAGE_S3_ENDPOINT` ska vara `host:port` utan protokoll — DuckDB lägger till http/https baserat på `USE_SSL`.
+> `GARAGE_S3_REGION` måste matcha `s3_region` i `garage.toml` (standard: `garage`).
 
 ---
 
