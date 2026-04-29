@@ -168,40 +168,148 @@ Lägg till Spring Security för att:
 
 ---
 
-## Fas 5 – Driftsättning på cbhcloud
+## Fas 5 – Testning
 
-1. Bygg Docker-imagen:
-   ```bash
-   docker build -t ghcr.io/wildrelation/ducklake-access-manager:latest .
-   ```
+### Alternativ A – Testa lokalt via SSH-tunnlar (under utveckling)
 
-2. Pusha till GitHub Container Registry:
-   ```bash
-   docker push ghcr.io/wildrelation/ducklake-access-manager:latest
-   ```
+Garage är ett publikt deployment men Admin API:n körs på port 3903 som inte är
+exponerad utåt. PostgreSQL är privat. Därför behövs två tunnlar.
 
-3. Skapa ett nytt deployment på cbhcloud:
-   - Image: `ghcr.io/wildrelation/ducklake-access-manager:latest`
-   - Visibility: **Public**
-   - Miljövariabler: se `.env.example`
+**Förutsättning:** Java 17+ och Maven installerat lokalt.
 
-4. Verifiera att deploymentet kan nå:
-   - `ducklake-catalog` internt på port 5432
-   - `ducklake-garage` internt på port 3903
+**Steg 1 – Öppna två SSH-tunnlar (håll terminalerna öppna)**
+
+Terminal 1 – PostgreSQL (privat deployment):
+```bash
+ssh -L 5432:localhost:5432 ducklake-catalog@deploy.cloud.cbh.kth.se
+```
+
+Terminal 2 – Garage Admin API (intern port, ej publik):
+```bash
+ssh -L 3903:localhost:3903 ducklake-garage@deploy.cloud.cbh.kth.se
+```
+
+**Steg 2 – Hämta Garage Admin Token**
+
+SSH:a in i Garage-containern och leta upp token:
+```bash
+ssh ducklake-garage@deploy.cloud.cbh.kth.se
+cat /etc/garage/garage.toml | grep admin_token
+```
+
+**Steg 3 – Konfigurera `.env`**
+
+```bash
+cp .env.example .env
+```
+
+Fyll i `.env` med dina värden:
+```env
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=ducklake
+POSTGRES_ADMIN_USER=ducklake
+POSTGRES_ADMIN_PASSWORD=cbhcloud
+
+GARAGE_ADMIN_URL=http://127.0.0.1:3903
+GARAGE_ADMIN_TOKEN=<token från garage.toml>
+GARAGE_S3_ENDPOINT=https://ducklake-garage.deploy.cloud.cbh.kth.se
+
+PORT=8080
+```
+
+**Steg 4 – Starta tjänsten**
+
+```bash
+export $(cat .env | xargs)
+mvn spring-boot:run
+```
+
+**Steg 5 – Testa med curl**
+
+Skapa en read-only nyckel:
+```bash
+curl -X POST http://localhost:8080/api/keys/generate \
+  -H "Content-Type: application/json" \
+  -d '{"bucketName": "ducklake", "permission": "read"}'
+```
+
+Förväntat svar:
+```json
+{
+  "s3Key": {
+    "keyId": "GKxxxx",
+    "secretKey": "xxxx",
+    "bucketName": "ducklake",
+    "permission": "read",
+    "endpoint": "https://..."
+  },
+  "dbCredentials": {
+    "username": "dl_ro_a3f2b1c9",
+    "password": "xxxx",
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "ducklake",
+    "permission": "read"
+  },
+  "duckdbScript": "INSTALL ducklake; ..."
+}
+```
+
+Lista alla nycklar:
+```bash
+curl http://localhost:8080/api/keys
+```
+
+Ta bort en nyckel:
+```bash
+curl -X DELETE "http://localhost:8080/api/keys/{keyId}?pgUsername=dl_ro_a3f2b1c9"
+```
 
 ---
 
-## Testa lokalt
+## Fas 6 – Driftsättning på cbhcloud
+
+När lokal testning fungerar, deploya tjänsten på cbhcloud.
+Då når den PostgreSQL och Garage Admin API internt utan SSH-tunnlar.
+
+**Steg 1 – Bygg och pusha Docker-imagen**
 
 ```bash
-# Kopiera och fyll i .env
-cp .env.example .env
+docker build -t ghcr.io/wildrelation/ducklake-access-manager:latest .
+docker push ghcr.io/wildrelation/ducklake-access-manager:latest
+```
 
-# Starta (kräver lokal Garage + PostgreSQL eller SSH-tunnel)
-mvn spring-boot:run
+**Steg 2 – Skapa nytt deployment på cbhcloud**
 
-# Testa key generation
-curl -X POST http://localhost:8080/api/keys/generate \
+| Inställning | Värde |
+|---|---|
+| Image | `ghcr.io/wildrelation/ducklake-access-manager:latest` |
+| Image start arguments | (tomt) |
+| Visibility | **Public** |
+| PORT | `8080` |
+
+**Steg 3 – Lägg till miljövariabler**
+
+Använd de interna deployment-namnen som host (cbhcloud löser dem internt):
+
+| Variabel | Värde |
+|---|---|
+| `POSTGRES_HOST` | `ducklake-catalog` |
+| `POSTGRES_PORT` | `5432` |
+| `POSTGRES_DB` | `ducklake` |
+| `POSTGRES_ADMIN_USER` | `ducklake` |
+| `POSTGRES_ADMIN_PASSWORD` | `cbhcloud` |
+| `GARAGE_ADMIN_URL` | `http://ducklake-garage:3903` |
+| `GARAGE_ADMIN_TOKEN` | `<token från garage.toml>` |
+| `GARAGE_S3_ENDPOINT` | `https://ducklake-garage.deploy.cloud.cbh.kth.se` |
+| `PORT` | `8080` |
+
+**Steg 4 – Verifiera**
+
+När deploymentet är igång, testa:
+```bash
+curl -X POST https://<access-manager-url>/api/keys/generate \
   -H "Content-Type: application/json" \
-  -d '{"bucketName": "my-bucket", "permission": "read"}'
+  -d '{"bucketName": "ducklake", "permission": "read"}'
 ```
