@@ -65,8 +65,15 @@ Gå till [cloud.cbh.kth.se](https://cloud.cbh.kth.se) och skapa ett nytt deploym
 | Image tag | `ghcr.io/wildrelation/ducklake-student:latest` |
 | PORT | `8888` |
 | Visibility | `Public` |
+| Health check | `/lab` |
 
-> Imagen innehåller JupyterLab + DuckDB + ducklake-extension förinstallerat.
+> Imagen innehåller JupyterLab + DuckDB + ducklake- och postgres-extensions förinstallerat.
+
+**Viktigt — cbhcloud-specifika krav:**
+
+- **PORT måste vara `8888`** — cbhcloud skickar trafik till porten i PORT-variabeln. JupyterLab lyssnar på 8888; fel port ger 503.
+- **Health check måste vara `/lab`** (gemener) — cbhcloud kräver att sökvägen returnerar HTTP 200 för att markera deploymentet som friskt. `/lab` fungerar; `/healthz` eller `/Lab` ger 404.
+- **`--allow-root` krävs** — cbhcloud kör containrar som root. JupyterLab 4.x vägrar starta som root utan denna flagg, vilket också ger 503 trots att containern är "Running".
 
 ### 2. Öppna JupyterLab
 
