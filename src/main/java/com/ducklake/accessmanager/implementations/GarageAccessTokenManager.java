@@ -93,7 +93,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         );
 
         return Arrays.stream(response.getBody())
-            .map(item -> new AccessKey(item.id(), null, null, null, garageEndpoint))
+            .map(item -> new AccessKey(item.id(), null, item.name(), null, garageEndpoint))
             .toList();
     }
 

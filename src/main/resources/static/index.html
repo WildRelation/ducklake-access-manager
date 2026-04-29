@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DuckLake Access Manager</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #242736;
+      --border:   #2e3248;
+      --accent:   #f5a623;
+      --blue:     #4a9eff;
+      --text:     #e8eaf0;
+      --muted:    #8b90a8;
+      --danger:   #e05252;
+      --success:  #52c97e;
+      --r:        8px;
+      --font:     'Segoe UI', system-ui, sans-serif;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 2rem; height: 56px;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .logo { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+    .logo span { color: var(--text); font-weight: 400; }
+    .logo-sub { font-size: 0.8rem; color: var(--muted); }
+
+    /* ── LAYOUT ── */
+    main { max-width: 860px; margin: 2rem auto; padding: 0 1.5rem; display: flex; flex-direction: column; gap: 2rem; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .card-header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title { font-size: 0.95rem; font-weight: 600; }
+    .card-body { padding: 1.5rem; }
+
+    /* ── FORM ── */
+    .form-row { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: 0.4rem; }
+    .field label { font-size: 0.78rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+    .field input, .field select {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: var(--r);
+      padding: 0.5rem 0.75rem; font-size: 0.875rem;
+      min-width: 160px; outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .field select option { background: var(--surface2); }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 1rem; border-radius: var(--r);
+      font-size: 0.875rem; font-weight: 500; cursor: pointer;
+      border: 1px solid transparent; transition: opacity 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent); color: #111; }
+    .btn-ghost    { background: var(--surface2); color: var(--text); border-color: var(--border); }
+    .btn-danger   { background: #e0525218; color: var(--danger); border-color: #e0525240; }
+    .btn-sm       { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+    .btn-icon     { padding: 0.35rem 0.5rem; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); cursor: pointer; color: var(--muted); font-size: 0.8rem; transition: color 0.15s; }
+    .btn-icon:hover { color: var(--text); }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead th {
+      background: var(--surface2); color: var(--muted);
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #ffffff08; }
+
+    /* ── BADGES ── */
+    .badge {
+      font-size: 0.7rem; padding: 0.18rem 0.55rem;
+      border-radius: 999px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-ro  { background: #4a9eff18; color: var(--blue);    border: 1px solid #4a9eff40; }
+    .badge-rw  { background: #52c97e18; color: var(--success); border: 1px solid #52c97e40; }
+
+    /* ── CODE / SCRIPT ── */
+    .code-block {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 1rem 1.25rem; font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 0.8rem; white-space: pre; overflow-x: auto;
+      color: #a8d8a8; line-height: 1.7;
+    }
+    .copy-row { display: flex; align-items: center; gap: 0.5rem; }
+    .copy-row code {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.2rem 0.5rem;
+      font-family: monospace; font-size: 0.82rem; color: var(--blue);
+      max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── MODAL ── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: #00000090; z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 2rem; width: min(660px, 94vw);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 1.5rem; }
+    .modal-section { margin-bottom: 1.25rem; }
+    .modal-section-label {
+      font-size: 0.75rem; color: var(--muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem;
+    }
+    .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem; }
+
+    /* ── ALERTS ── */
+    .alert {
+      padding: 0.7rem 1rem; border-radius: var(--r); font-size: 0.875rem; margin-bottom: 1rem;
+    }
+    .alert-warn    { background: #f5a62318; border: 1px solid #f5a62340; color: var(--accent); }
+    .alert-success { background: #52c97e18; border: 1px solid #52c97e40; color: var(--success); }
+    .alert-error   { background: #e0525218; border: 1px solid #e0525240; color: var(--danger); }
+    .alert-info    { background: #4a9eff18; border: 1px solid #4a9eff40; color: var(--blue); }
+
+    /* ── EMPTY ── */
+    .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted); }
+
+    /* ── SPINNER ── */
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── CRED GRID ── */
+    .cred-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .cred-item { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 0.75rem 1rem; }
+    .cred-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+    .cred-value { font-family: monospace; font-size: 0.85rem; color: var(--blue); word-break: break-all; }
+
+    /* ── DIVIDER ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+    @media (max-width: 500px) {
+      .cred-grid { grid-template-columns: 1fr; }
+      .form-row { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">🦆 DuckLake <span>Access Manager</span></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── GENERATE KEY ── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Generera åtkomstnyckel</span>
+    </div>
+    <div class="card-body">
+      <div id="gen-alert"></div>
+      <div class="form-row">
+        <div class="field">
+          <label>Bucket</label>
+          <input type="text" id="bucketName" value="ducklake" />
+        </div>
+        <div class="field">
+          <label>Behörighet</label>
+          <select id="permission">
+            <option value="read">Read-only</option>
+            <option value="readwrite">Read/Write</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="genBtn" onclick="generateKey()">
+            Generera nyckel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EXISTING KEYS ── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Befintliga nycklar</span>
+      <button class="btn btn-ghost btn-sm" onclick="loadKeys()">↻ Uppdatera</button>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div id="keys-container" style="padding:1.5rem">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── RESULT MODAL ── -->
+<div class="overlay" id="resultModal">
+  <div class="modal">
+    <div class="modal-title">🔑 Nyckel skapad</div>
+
+    <div class="alert alert-warn">
+      Spara skriptet nedan — hemliga nycklar visas bara en gång och kan inte hämtas igen.
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-label">DuckDB-script — klistra in direkt</div>
+      <div class="code-block" id="resultScript"></div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="modal-section">
+      <div class="modal-section-label">Råa värden</div>
+      <div class="cred-grid" id="resultCreds"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="copyScript()">📋 Kopiera script</button>
+      <button class="btn btn-primary" onclick="closeModal()">Klar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── LOCAL STORAGE: keyId → pgUsername mapping ─────────────────────────────
+const STORAGE_KEY = 'ducklake_key_map';
+
+function saveKeyMapping(keyId, pgUsername) {
+  const map = getKeyMap();
+  map[keyId] = pgUsername;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+}
+
+function getKeyMap() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+// ── ALERTS ────────────────────────────────────────────────────────────────
+function setAlert(id, html) { document.getElementById(id).innerHTML = html; }
+function clearAlert(id) { document.getElementById(id).innerHTML = ''; }
+
+function alertHtml(msg, type) {
+  return `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────
+function openModal() { document.getElementById('resultModal').classList.add('open'); }
+function closeModal() { document.getElementById('resultModal').classList.remove('open'); }
+
+// ── GENERATE KEY ──────────────────────────────────────────────────────────
+async function generateKey() {
+  const bucket = document.getElementById('bucketName').value.trim();
+  const permission = document.getElementById('permission').value;
+  const btn = document.getElementById('genBtn');
+
+  clearAlert('gen-alert');
+  if (!bucket) { setAlert('gen-alert', alertHtml('Ange bucket-namn.', 'error')); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Genererar...';
+
+  try {
+    const res = await fetch('/api/keys/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bucketName: bucket, permission })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    // Spara mappning keyId → pgUsername i localStorage
+    saveKeyMapping(data.s3Key.keyId, data.dbCredentials.username);
+
+    // Visa DuckDB-script
+    document.getElementById('resultScript').textContent = data.duckdbScript;
+
+    // Visa råa värden
+    document.getElementById('resultCreds').innerHTML = credGrid([
+      { label: 'S3 Key ID',        value: data.s3Key.keyId },
+      { label: 'S3 Secret Key',    value: data.s3Key.secretKey },
+      { label: 'S3 Endpoint',      value: data.s3Key.endpoint },
+      { label: 'Bucket',           value: data.s3Key.bucketName },
+      { label: 'PG Host',          value: `${data.dbCredentials.host}:${data.dbCredentials.port}` },
+      { label: 'PG Databas',       value: data.dbCredentials.database },
+      { label: 'PG Användare',     value: data.dbCredentials.username },
+      { label: 'PG Lösenord',      value: data.dbCredentials.password },
+    ]);
+
+    openModal();
+    loadKeys();
+
+  } catch (e) {
+    setAlert('gen-alert', alertHtml(`Kunde inte skapa nyckel: ${e.message}`, 'error'));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Generera nyckel';
+  }
+}
+
+function credGrid(items) {
+  return items.map(({ label, value }) => `
+    <div class="cred-item">
+      <div class="cred-label">${label}</div>
+      <div class="copy-row">
+        <code title="${value}">${value}</code>
+        <button class="btn-icon" onclick="copy('${value.replace(/'/g,"\\'")}', this)" title="Kopiera">⎘</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── LIST KEYS ─────────────────────────────────────────────────────────────
+async function loadKeys() {
+  const el = document.getElementById('keys-container');
+  el.innerHTML = '<div style="padding:1rem"><span class="spinner"></span></div>';
+
+  try {
+    const res = await fetch('/api/keys');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const keys = await res.json();
+    const map = getKeyMap();
+
+    if (!keys.length) {
+      el.innerHTML = '<div class="empty">Inga nycklar skapade ännu.</div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Key ID</th>
+              <th>Namn</th>
+              <th>PG-användare</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${keys.map(k => {
+              const pg = map[k.keyId] || '';
+              return `
+                <tr>
+                  <td>
+                    <div class="copy-row">
+                      <code title="${k.keyId}">${k.keyId}</code>
+                      <button class="btn-icon" onclick="copy('${k.keyId}', this)" title="Kopiera">⎘</button>
+                    </div>
+                  </td>
+                  <td style="color:var(--muted);font-size:0.85rem">${k.bucketName || '—'}</td>
+                  <td>
+                    ${pg
+                      ? `<div class="copy-row"><code>${pg}</code><button class="btn-icon" onclick="copy('${pg}', this)" title="Kopiera">⎘</button></div>`
+                      : '<span style="color:var(--muted);font-size:0.8rem">okänd</span>'}
+                  </td>
+                  <td style="text-align:right">
+                    <button class="btn btn-danger btn-sm" onclick="deleteKey('${k.keyId}', '${pg}')">
+                      Ta bort
+                    </button>
+                  </td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+  } catch (e) {
+    el.innerHTML = `<div style="padding:1rem">${alertHtml('Kunde inte hämta nycklar: ' + e.message, 'error')}</div>`;
+  }
+}
+
+// ── DELETE KEY ────────────────────────────────────────────────────────────
+async function deleteKey(keyId, pgUsername) {
+  if (!pgUsername) {
+    if (!confirm(`Ta bort nyckel ${keyId}?\n\nOBS: PG-användaren är okänd och tas inte bort automatiskt.`)) return;
+  } else {
+    if (!confirm(`Ta bort nyckel ${keyId} och PostgreSQL-användaren ${pgUsername}?`)) return;
+  }
+
+  try {
+    const url = pgUsername
+      ? `/api/keys/${keyId}?pgUsername=${encodeURIComponent(pgUsername)}`
+      : `/api/keys/${keyId}?pgUsername=unknown`;
+
+    const res = await fetch(url, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+
+    // Ta bort från localStorage
+    const map = getKeyMap();
+    delete map[keyId];
+    localStorage.setItem('ducklake_key_map', JSON.stringify(map));
+
+    loadKeys();
+  } catch (e) {
+    alert('Fel vid borttagning: ' + e.message);
+  }
+}
+
+// ── COPY ──────────────────────────────────────────────────────────────────
+function copy(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓';
+    btn.style.color = 'var(--success)';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 1500);
+  });
+}
+
+function copyScript() {
+  copy(document.getElementById('resultScript').textContent,
+       { innerHTML: '', style: {} });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+loadKeys();
+</script>
+</body>
+</html>
