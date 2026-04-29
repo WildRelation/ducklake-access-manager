@@ -1,241 +1,189 @@
-# DuckLake Access Manager – Projektplan
+# DuckLake Access Manager
 
 Tjänst för automatisk generering och hantering av åtkomstnycklar till DuckLake (PostgreSQL + Garage) på cbhcloud.
 
----
+Istället för att dela ut credentials manuellt kan användare besöka webbgränssnittet och få ett färdigt DuckDB-anslutningsscript på några sekunder.
 
-## Nuläge
-
-Tre befintliga repositories utgör grunden:
-
-| Repository | Syfte |
-|---|---|
-| `garage-cbhcloud-quickstart` | Guide för att driftsätta Garage på cbhcloud |
-| `ducklake-guide-garage` | Tutorial: PostgreSQL + Garage + DuckDB via SSH-tunnel |
-| `ducklake-connect` | Python-klient som ansluter till DuckLake |
-
-**Problemet:** Åtkomstnycklar genereras och delas ut manuellt. Det ska automatiseras.
+**Produktions-URL:** `https://ducklake-access-manager.app.cloud.cbh.kth.se`
 
 ---
 
-## Övergripande arkitektur
+## Vad tjänsten gör
 
-```mermaid
-graph TB
-    subgraph cbhcloud
-        subgraph "Befintliga deployments"
-            PG["ducklake-catalog\nPostgreSQL :5432\n(Private)"]
-            GR["ducklake-garage\nGarage S3 :3900\n(Public)"]
-            GRA["Garage Admin API\n:3903\n(Intern)"]
-        end
+När en användare begär en nyckel sker tre saker automatiskt:
 
-        subgraph "Ny tjänst – Access Manager"
-            API["Access Manager API"]
-            UI["Web UI"]
-            API --> UI
-        end
+1. En S3-nyckel skapas i Garage med rätt behörighet på bucketen
+2. En PostgreSQL-användare skapas med rätt behörighet på databasen
+3. Ett färdigt DuckDB-script returneras — kopiera och kör direkt
 
-        API -->|"Skapa PostgreSQL-användare\nvia JDBC"| PG
-        API -->|"Skapa S3-nycklar\nvia Admin API"| GRA
-        GRA -.->|"tillhör"| GR
-    end
-
-    Student["Student / Användare"] -->|"Begär åtkomst"| UI
-    UI -->|"Returnerar DuckDB-script\n+ råa nycklar"| Student
+```json
+{
+  "s3Key": {
+    "keyId": "GKxxxxxxxxxxxx",
+    "secretKey": "...",
+    "bucketName": "ducklake",
+    "permission": "read",
+    "endpoint": "https://ducklake-garage.deploy.cloud.cbh.kth.se"
+  },
+  "dbCredentials": {
+    "username": "dl_ro_7df3023f",
+    "password": "...",
+    "host": "ducklake-catalog",
+    "port": 5432,
+    "database": "ducklake",
+    "permission": "read"
+  },
+  "duckdbScript": "INSTALL ducklake;\n..."
+}
 ```
 
 ---
 
-## Komponentdesign
+## Arkitektur
 
-```mermaid
-classDiagram
-    class ObjectStoreAccessTokenManager {
-        <<interface>>
-        +createReadOnlyKey(bucketName: String) AccessKey
-        +createReadWriteKey(bucketName: String) AccessKey
-        +deleteKey(keyId: String)
-        +listKeys() List~AccessKey~
-    }
+```
+ducklake-access-manager  →  ducklake-garage:3900/v2/*  (Garage Admin API via nginx)
+ducklake-access-manager  →  ducklake-catalog:5432      (PostgreSQL via JDBC)
+```
 
-    class DatabaseAccessTokenManager {
-        <<interface>>
-        +createReadOnlyUser(database: String) DbCredentials
-        +createReadWriteUser(database: String) DbCredentials
-        +deleteUser(username: String)
-    }
+Garage Admin API körs internt på port 3903 men är inte åtkomlig direkt mellan deployments på cbhcloud (NetworkPolicy). En nginx reverse proxy i `ducklake-garage`-containern tar emot trafik på port 3900 och vidarebefordrar `/v2/*` till port 3903.
 
-    class GarageAccessTokenManager {
-        -adminApiUrl: String
-        -adminToken: String
-    }
+Se [`garage-cbhcloud-quickstart`](https://github.com/WildRelation/garage-cbhcloud-quickstart) för detaljer om Garage-deploymentet.
 
-    class MinioAccessTokenManager {
-        -endpoint: String
-        -adminKey: String
-    }
+---
 
-    class PostgresAccessTokenManager {
-        -jdbcUrl: String
-        -adminUser: String
-        -adminPassword: String
-    }
+## Gränssnitt
 
-    ObjectStoreAccessTokenManager <|.. GarageAccessTokenManager : implementerar
-    ObjectStoreAccessTokenManager <|.. MinioAccessTokenManager : implementerar
-    DatabaseAccessTokenManager <|.. PostgresAccessTokenManager : implementerar
+### Webb-UI
+
+Öppna `https://ducklake-access-manager.app.cloud.cbh.kth.se/` i webbläsaren.
+
+- Välj bucket och behörighet (read / readwrite)
+- Klicka **Generera nyckel**
+- Kopiera DuckDB-scriptet från modalen
+
+### REST API
+
+**Generera nyckel**
+```
+POST /api/keys/generate
+Content-Type: application/json
+
+{"bucketName": "ducklake", "permission": "read"}
+```
+
+**Lista nycklar**
+```
+GET /api/keys
+```
+
+**Ta bort nyckel**
+```
+DELETE /api/keys/{keyId}?pgUsername=dl_ro_xxxxxxxx
+```
+
+**Hälsokontroll**
+```
+GET /healthz  →  200 OK
 ```
 
 ---
 
-## Åtkomstregler
+## Behörigheter
 
-```mermaid
-flowchart LR
-    subgraph Roller
-        A["Oprivilegierad\nanvändare"]
-        B["Privilegierad\nanvändare"]
-    end
-
-    subgraph "Garage (S3)"
-        RO["Read-only nyckel\n(GET på bucket)"]
-        RW["Read/Write nyckel\n(GET + PUT + DELETE)"]
-    end
-
-    subgraph "PostgreSQL"
-        PGRO["SELECT-rättigheter"]
-        PGRW["SELECT + INSERT +\nUPDATE + DELETE"]
-    end
-
-    A -->|"kan skapa"| RO
-    A -->|"kan skapa"| PGRO
-    B -->|"kan skapa"| RO
-    B -->|"kan skapa"| RW
-    B -->|"kan skapa"| PGRO
-    B -->|"kan skapa"| PGRW
-```
-
----
-
-## API-endpoints
-
-```mermaid
-graph LR
-    subgraph "POST /api/keys/generate"
-        direction TB
-        IN1["Body:\nbucket, role, type"]
-        OUT1["Response:\ngarage_key_id\ngarage_secret\npg_user\npg_password\nduckdb_script"]
-    end
-
-    subgraph "GET /api/keys"
-        direction TB
-        OUT2["Lista alla nycklar\nför inloggad användare"]
-    end
-
-    subgraph "DELETE /api/keys/:id"
-        direction TB
-        OUT3["Revokera nyckel\ni Garage + PostgreSQL"]
-    end
-```
-
----
-
-## Implementationsplan
-
-```mermaid
-gantt
-    title DuckLake Access Manager – Faser
-    dateFormat  YYYY-MM-DD
-    section Fas 1 – Grund
-    Interface-design (ObjectStore + DB)       :f1a, 2025-05-01, 3d
-    GarageAccessTokenManager impl             :f1b, after f1a, 4d
-    PostgresAccessTokenManager impl (JDBC)    :f1c, after f1a, 4d
-
-    section Fas 2 – API
-    REST API (endpoints + autentisering)      :f2a, after f1b, 5d
-    Rollhantering (privilegierad/oprivilegiad):f2b, after f2a, 3d
-
-    section Fas 3 – UI
-    Web UI – nyckelgenerering                 :f3a, after f2b, 4d
-    DuckDB script-generator                   :f3b, after f3a, 2d
-    Visa råa nycklar + endpoints              :f3c, after f3b, 2d
-
-    section Fas 4 – Driftsättning
-    Dockerisering + cbhcloud deployment       :f4a, after f3c, 3d
-    Integration med befintliga deployments    :f4b, after f4a, 2d
-    Testning + dokumentation                  :f4c, after f4b, 3d
-```
-
----
-
-## Output till användaren
-
-När en nyckel genereras får användaren ett klart-att-köra DuckDB-script:
-
-```sql
-INSTALL ducklake;
-INSTALL postgres;
-
-LOAD ducklake;
-LOAD postgres;
-
--- Genererat av DuckLake Access Manager
-CREATE OR REPLACE SECRET (
-    TYPE postgres,
-    HOST '<postgres-host>',
-    PORT 5432,
-    DATABASE ducklake,
-    USER '<generated-pg-user>',
-    PASSWORD '<generated-pg-password>'
-);
-
-CREATE OR REPLACE SECRET garage_secret (
-    TYPE s3,
-    PROVIDER config,
-    KEY_ID '<generated-garage-key-id>',
-    SECRET '<generated-garage-secret>',
-    REGION 'local',
-    ENDPOINT '<garage-endpoint>',
-    URL_STYLE 'path',
-    USE_SSL false
-);
-
-ATTACH 'ducklake:postgres:dbname=ducklake' AS my_ducklake (
-    DATA_PATH 's3://<bucket-name>/'
-);
-
-USE my_ducklake;
-```
-
-Samt råa värden för användare som vill integrera på annat sätt:
-
-| Nyckel | Värde |
-|---|---|
-| Garage Endpoint | `https://...` |
-| Garage Key ID | `...` |
-| Garage Secret | `...` |
-| PostgreSQL Host | `...` |
-| PostgreSQL User | `...` |
-| PostgreSQL Password | `...` |
-
----
-
-## Teknisk stack (rekommendation)
-
-| Del | Teknologi | Motivering |
+| Behörighet | Garage (S3) | PostgreSQL |
 |---|---|---|
-| Backend/API | **Go** | Passar Garage Admin API, lätt att containerisera, används av garage-webui |
-| Alternativ backend | **Java (Spring Boot)** | JDBC-stöd inbyggt, välkänt för PostgreSQL-hantering |
-| Frontend | **TypeScript + React** | Samma stack som garage-webui för inspiration |
-| PostgreSQL-hantering | **JDBC** (Java) eller `database/sql` (Go) | Direkt användarskapande |
-| Garage-hantering | **REST API mot :3903** | Officiell admin API, OpenAPI-spec tillgänglig |
+| `read` | GET på bucket | SELECT |
+| `readwrite` | GET + PUT + DELETE | SELECT, INSERT, UPDATE, DELETE |
+
+PostgreSQL-användare skapas med prefix `dl_ro_` (read) eller `dl_rw_` (readwrite).
+Endast användare med dessa prefix kan tas bort — admin-kontot skyddas.
 
 ---
 
-## Viktiga noter
+## Kodstruktur
 
-- **Använd interfaces** – `ObjectStoreAccessTokenManager` och `DatabaseAccessTokenManager` – så att MinIO enkelt kan bytas mot Garage (eller vice versa) utan att ändra resten av systemet.
-- **MinIO är unmaintained** – bygg primärt `GarageAccessTokenManager`, lägg till MinIO-impl endast om det behövs för lokal dev.
-- **Garage Admin API port 3903** – måste vara nåbar från Access Manager-tjänsten internt på cbhcloud.
-- **Olika datasets = olika buckets** – hantera behörigheter per bucket, inte globalt.
-- **PostgreSQL utan SSH-tunnel** hanteras av handledaren som en systemtjänst via Helm chart – detta är inte vår uppgift.
+```
+src/main/java/com/ducklake/accessmanager/
+├── interfaces/
+│   ├── ObjectStoreAccessTokenManager.java   # Interface för S3-hantering
+│   └── DatabaseAccessTokenManager.java      # Interface för PostgreSQL-hantering
+├── implementations/
+│   ├── GarageAccessTokenManager.java        # Garage Admin API v2
+│   └── PostgresAccessTokenManager.java      # JDBC + DDL SQL
+├── api/
+│   ├── KeyController.java                   # REST-endpoints
+│   └── HealthController.java                # /healthz
+└── model/
+    ├── AccessKey.java
+    ├── DbCredentials.java
+    ├── GeneratedCredentials.java
+    └── KeyRequest.java
+
+src/main/resources/
+├── static/index.html                        # Webb-UI
+└── application.properties
+```
+
+---
+
+## Lokal testning
+
+Se [IMPLEMENTATION.md](IMPLEMENTATION.md) Fas 5 för fullständiga instruktioner med SSH-tunnlar.
+
+Snabbstart:
+```bash
+# Öppna tunnlar i separata terminaler
+ssh -L 5433:localhost:5432 ducklake-catalog@deploy.cloud.cbh.kth.se
+ssh -L 3903:localhost:3903 ducklake-garage@deploy.cloud.cbh.kth.se
+
+# Konfigurera miljövariabler
+cp .env.example .env  # fyll i värden
+
+# Starta
+export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
+mvn spring-boot:run
+```
+
+---
+
+## Driftsättning på cbhcloud
+
+```bash
+docker build -t ghcr.io/wildrelation/ducklake-access-manager:latest .
+docker push ghcr.io/wildrelation/ducklake-access-manager:latest
+```
+
+**Miljövariabler:**
+
+| Variabel | Värde |
+|---|---|
+| `POSTGRES_HOST` | `ducklake-catalog` |
+| `POSTGRES_PORT` | `5432` |
+| `POSTGRES_DB` | `ducklake` |
+| `POSTGRES_ADMIN_USER` | `ducklake` |
+| `POSTGRES_ADMIN_PASSWORD` | `cbhcloud` |
+| `GARAGE_ADMIN_URL` | `http://ducklake-garage:3900` |
+| `GARAGE_ADMIN_TOKEN` | token från `/tmp/garage.toml` i ducklake-garage |
+| `GARAGE_S3_ENDPOINT` | `https://ducklake-garage.deploy.cloud.cbh.kth.se` |
+| `PORT` | `8080` |
+
+> `GARAGE_ADMIN_URL` pekar på port **3900** (nginx), inte 3903.
+
+---
+
+## Teknisk stack
+
+| Del | Teknologi |
+|---|---|
+| Backend | Java 17 + Spring Boot 3.2.5 |
+| PostgreSQL | JdbcTemplate (DDL direkt) |
+| Garage | REST mot Admin API v2 |
+| Frontend | Vanilla HTML/CSS/JS (ingen byggprocess) |
+| Containerisering | Docker, ghcr.io |
+
+---
+
+## Återstående arbete
+
+- **Autentisering (Fas 4)** — KTH Login (OIDC) via Spring Security så att `readwrite` kräver privilegierad användare
