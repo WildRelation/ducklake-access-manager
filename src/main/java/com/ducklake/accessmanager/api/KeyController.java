@@ -97,6 +97,9 @@ public class KeyController {
     // Bygger ett färdigt DuckDB-script med de genererade nycklarna
     private String buildDuckdbScript(AccessKey s3Key, DbCredentials db, String bucketName, String pgHost) {
         return """
+            -- Run this script from a deployment on kthcloud.
+            -- The hostname '%s' is only reachable within the cbhcloud cluster.
+
             INSTALL ducklake;
             INSTALL postgres;
 
@@ -129,6 +132,7 @@ public class KeyController {
 
             USE my_ducklake;
             """.formatted(
+                pgHost,
                 pgHost, db.port(), db.database(), db.username(), db.password(),
                 s3Key.keyId(), s3Key.secretKey(), s3Key.endpoint(),
                 db.database(), bucketName
