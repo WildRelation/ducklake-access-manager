@@ -14,20 +14,22 @@ Koden är skriven på engelska; kommentarer och dokumentation på svenska.
 
 ---
 
-## Fas 1 – GarageAccessTokenManager
+## Fas 1 – GarageAccessTokenManager ✅ Implementerad
 
 **Fil:** `implementations/GarageAccessTokenManager.java`
 
-Garage Admin API körs internt på port 3903 i `ducklake-garage`-deploymentet.
+Garage Admin API v2 körs internt på port 3903 i `ducklake-garage`-deploymentet.
 Alla anrop autentiseras med en Bearer-token via `Authorization`-headern.
+
+> **OBS:** Garage använder API v2. Endpoints börjar med `/v2/` och använder camelCase-namn.
 
 ### Steg 1.1 – Skapa en nyckel (createReadOnlyKey / createReadWriteKey)
 
-Två anrop krävs:
+Tre anrop krävs:
 
-**Anrop 1** – Skapa nyckeln:
+**Anrop 1** – Skapa nyckeln (`postCreateKey`):
 ```
-POST http://ducklake-garage:3903/v1/key
+POST http://ducklake-garage:3903/v2/CreateKey
 Authorization: Bearer {GARAGE_ADMIN_TOKEN}
 Content-Type: application/json
 
@@ -38,18 +40,35 @@ Svar:
 ```json
 {
   "accessKeyId": "GKxxxxxxxxxxxx",
-  "secretAccessKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  "secretAccessKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "name": "key-my-bucket"
 }
 ```
 
-**Anrop 2** – Tilldela behörighet på bucket:
+> `secretAccessKey` returneras **bara vid skapandet** – sparas inte av Garage efteråt.
+
+**Anrop 2** – Hämta bucket-ID utifrån namn (`getBucketId`):
 ```
-POST http://ducklake-garage:3903/v1/bucket/allow-key
+GET http://ducklake-garage:3903/v2/GetBucketInfo?globalAlias={bucketName}
+Authorization: Bearer {GARAGE_ADMIN_TOKEN}
+```
+
+Svar:
+```json
+{
+  "id": "bucketid...",
+  "globalAliases": ["my-bucket"]
+}
+```
+
+**Anrop 3** – Tilldela behörighet på bucket (`grantBucketPermission`):
+```
+POST http://ducklake-garage:3903/v2/AllowBucketKey
 Authorization: Bearer {GARAGE_ADMIN_TOKEN}
 Content-Type: application/json
 
 {
-  "bucketId": "...",
+  "bucketId": "bucketid...",
   "accessKeyId": "GKxxxxxxxxxxxx",
   "permissions": {
     "read": true,
@@ -61,24 +80,22 @@ Content-Type: application/json
 
 > För read/write: sätt `"write": true`
 
-### Steg 1.2 – Ta bort en nyckel (deleteKey)
+### Steg 1.2 – Ta bort en nyckel (deleteKey) ✅
 
 ```
-DELETE http://ducklake-garage:3903/v1/key?id={keyId}
+DELETE http://ducklake-garage:3903/v2/DeleteKey?id={keyId}
 Authorization: Bearer {GARAGE_ADMIN_TOKEN}
 ```
 
-### Steg 1.3 – Lista nycklar (listKeys)
+### Steg 1.3 – Lista nycklar (listKeys) ✅
 
 ```
-GET http://ducklake-garage:3903/v1/key?list
+GET http://ducklake-garage:3903/v2/ListKeys
 Authorization: Bearer {GARAGE_ADMIN_TOKEN}
 ```
 
-Svar: lista av `{ "id": "...", "name": "..." }`. Hämta detaljer per nyckel med:
-```
-GET http://ducklake-garage:3903/v1/key?id={keyId}
-```
+Svar: lista av `{ "id": "...", "name": "..." }`.
+> `secretAccessKey` ingår inte i listan – nyckeln visas bara vid skapandet.
 
 ---
 

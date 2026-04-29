@@ -1,29 +1,31 @@
 package com.ducklake.accessmanager.implementations;
 
+import com.ducklake.accessmanager.garage.GarageBucketResponse;
+import com.ducklake.accessmanager.garage.GarageKeyListItem;
+import com.ducklake.accessmanager.garage.GarageKeyResponse;
 import com.ducklake.accessmanager.interfaces.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.model.AccessKey;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.http.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
- * Implementerar {@link ObjectStoreAccessTokenManager} mot Garages Admin API (port 3903).
+ * Implementerar {@link ObjectStoreAccessTokenManager} mot Garages Admin API v2 (port 3903).
  *
  * Används i produktion på cbhcloud. Kommunicerar med den interna Admin API:n
  * via HTTP och autentiserar med en Bearer-token (GARAGE_ADMIN_TOKEN).
  *
- * Implementationsordning:
- *   Steg 1 – createReadOnlyKey:  POST /v1/key → POST /v1/bucket/allow-key (read)
- *   Steg 2 – createReadWriteKey: POST /v1/key → POST /v1/bucket/allow-key (read+write)
- *   Steg 3 – deleteKey:          DELETE /v1/key?id={keyId}
- *   Steg 4 – listKeys:           GET /v1/key?list
+ * Flöde för att skapa en nyckel:
+ *   1. POST /v2/CreateKey          → skapar nyckeln, returnerar accessKeyId + secretAccessKey
+ *   2. GET  /v2/GetBucketInfo      → hämtar bucket-ID utifrån bucket-namn (globalAlias)
+ *   3. POST /v2/AllowBucketKey     → kopplar nyckeln till bucketen med rätt behörighet
  *
- * API-dokumentation: https://garagehq.deuxfleurs.fr/api/garage-admin-v0.html#tag/Key
+ * API-dokumentation: https://garagehq.deuxfleurs.fr/api/garage-admin-v2.html
  */
 @Service
 public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
@@ -45,57 +47,104 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     }
 
     /**
-     * Steg 1: Skapa en read-only nyckel för en specifik bucket.
-     *
-     * Anrop som ska göras mot Garage Admin API:
-     *   1. POST {adminApiUrl}/v1/key
-     *      Body: { "name": "{keyName}" }
-     *      Svar: { "accessKeyId": "...", "secretAccessKey": "..." }
-     *
-     *   2. POST {adminApiUrl}/v1/bucket/allow-key
-     *      Body: { "bucketId": "...", "accessKeyId": "...", "permissions": { "read": true, "write": false, "owner": false } }
+     * Skapar en read-only nyckel för en specifik bucket.
+     * Steg: CreateKey → GetBucketInfo → AllowBucketKey (read: true, write: false)
      */
     @Override
     public AccessKey createReadOnlyKey(String bucketName, String keyName) {
-        // TODO: implementera enligt steg ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        return createKey(bucketName, keyName, false);
     }
 
     /**
-     * Steg 2: Skapa en read/write-nyckel för en specifik bucket.
-     *
-     * Samma flöde som createReadOnlyKey men med permissions:
-     *   { "read": true, "write": true, "owner": false }
+     * Skapar en read/write-nyckel för en specifik bucket.
+     * Steg: CreateKey → GetBucketInfo → AllowBucketKey (read: true, write: true)
      */
     @Override
     public AccessKey createReadWriteKey(String bucketName, String keyName) {
-        // TODO: implementera enligt steg ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        return createKey(bucketName, keyName, true);
     }
 
     /**
-     * Steg 3: Ta bort en nyckel permanent.
-     *
-     * Anrop: DELETE {adminApiUrl}/v1/key?id={keyId}
-     * Autentisering: Bearer-token i Authorization-headern
+     * Tar bort en nyckel permanent.
+     * Anrop: DELETE /v2/DeleteKey?id={keyId}
      */
     @Override
     public void deleteKey(String keyId) {
-        // TODO: implementera enligt steg ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        restTemplate.exchange(
+            adminApiUrl + "/v2/DeleteKey?id=" + keyId,
+            HttpMethod.DELETE,
+            new HttpEntity<>(authHeaders()),
+            Void.class
+        );
     }
 
     /**
-     * Steg 4: Lista alla nycklar.
-     *
-     * Anrop: GET {adminApiUrl}/v1/key?list
-     * Svar: lista av { "id": "...", "name": "..." }
-     * Hämta sedan detaljer per nyckel via GET /v1/key?id={keyId}
+     * Listar alla nycklar registrerade i Garage.
+     * Anrop: GET /v2/ListKeys
+     * Returnerar id + namn per nyckel (secretAccessKey är inte tillgänglig efter skapandet).
      */
     @Override
     public List<AccessKey> listKeys() {
-        // TODO: implementera enligt steg ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        ResponseEntity<GarageKeyListItem[]> response = restTemplate.exchange(
+            adminApiUrl + "/v2/ListKeys",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders()),
+            GarageKeyListItem[].class
+        );
+
+        return Arrays.stream(response.getBody())
+            .map(item -> new AccessKey(item.id(), null, null, null, garageEndpoint))
+            .toList();
+    }
+
+    // --- Privata hjälpmetoder ---
+
+    // Gemensam logik för att skapa en nyckel med valfri write-behörighet
+    private AccessKey createKey(String bucketName, String keyName, boolean allowWrite) {
+        GarageKeyResponse created = postCreateKey(keyName);
+        String bucketId = getBucketId(bucketName);
+        grantBucketPermission(bucketId, created.accessKeyId(), allowWrite);
+
+        String permission = allowWrite ? "readwrite" : "read";
+        return new AccessKey(created.accessKeyId(), created.secretAccessKey(), bucketName, permission, garageEndpoint);
+    }
+
+    // Steg 1: POST /v2/CreateKey – skapar nyckeln och returnerar accessKeyId + secretAccessKey
+    private GarageKeyResponse postCreateKey(String keyName) {
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(
+            Map.of("name", keyName),
+            authHeaders()
+        );
+        return restTemplate.postForObject(adminApiUrl + "/v2/CreateKey", request, GarageKeyResponse.class);
+    }
+
+    // Steg 2: GET /v2/GetBucketInfo?globalAlias={bucketName} – hämtar bucket-ID
+    private String getBucketId(String bucketName) {
+        ResponseEntity<GarageBucketResponse> response = restTemplate.exchange(
+            adminApiUrl + "/v2/GetBucketInfo?globalAlias=" + bucketName,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders()),
+            GarageBucketResponse.class
+        );
+        return response.getBody().id();
+    }
+
+    // Steg 3: POST /v2/AllowBucketKey – kopplar nyckeln till bucketen med behörigheter
+    private void grantBucketPermission(String bucketId, String accessKeyId, boolean allowWrite) {
+        Map<String, Object> body = Map.of(
+            "bucketId", bucketId,
+            "accessKeyId", accessKeyId,
+            "permissions", Map.of(
+                "read", true,
+                "write", allowWrite,
+                "owner", false
+            )
+        );
+        restTemplate.postForObject(
+            adminApiUrl + "/v2/AllowBucketKey",
+            new HttpEntity<>(body, authHeaders()),
+            Object.class
+        );
     }
 
     // Skapar HTTP-headers med Bearer-autentisering för alla anrop mot Admin API:n
