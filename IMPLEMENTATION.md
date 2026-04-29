@@ -99,16 +99,18 @@ Svar: lista av `{ "id": "...", "name": "..." }`.
 
 ---
 
-## Fas 2 – PostgresAccessTokenManager
+## Fas 2 – PostgresAccessTokenManager ✅ Implementerad
 
 **Fil:** `implementations/PostgresAccessTokenManager.java`
 
 Ansluter till `ducklake-catalog` med admin-kontot via JDBC (`JdbcTemplate`).
 Kör rå SQL för att skapa och ta bort användare.
 
-> OBS: använd `jdbcTemplate.execute()` för DDL-satser (CREATE USER, GRANT, DROP USER).
+> OBS: DDL-satser (CREATE USER, GRANT, DROP USER) stödjer inte prepared statement-parametrar
+> i PostgreSQL. Säkert ändå eftersom användarnamn och lösenord genereras via UUID – ingen
+> användarinmatning involverad.
 
-### Steg 2.1 – Skapa read-only-användare (createReadOnlyUser)
+### Steg 2.1 – Skapa read-only-användare ✅
 
 ```sql
 CREATE USER {username} WITH PASSWORD '{password}';
@@ -117,7 +119,7 @@ GRANT USAGE ON SCHEMA public TO {username};
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO {username};
 ```
 
-### Steg 2.2 – Skapa read/write-användare (createReadWriteUser)
+### Steg 2.2 – Skapa read/write-användare ✅
 
 ```sql
 CREATE USER {username} WITH PASSWORD '{password}';
@@ -126,7 +128,10 @@ GRANT USAGE ON SCHEMA public TO {username};
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {username};
 ```
 
-### Steg 2.3 – Ta bort användare (deleteUser)
+### Steg 2.3 – Ta bort användare ✅
+
+Inkluderar säkerhetsvalidering: endast användare med prefixet `dl_ro_` eller `dl_rw_`
+kan tas bort, för att skydda admin-kontot.
 
 ```sql
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM {username};
@@ -135,7 +140,7 @@ REVOKE CONNECT ON DATABASE {database} FROM {username};
 DROP USER {username};
 ```
 
-### Steg 2.4 – Lista användare (listUsers)
+### Steg 2.4 – Lista användare ✅
 
 ```sql
 SELECT usename FROM pg_user WHERE usename LIKE 'dl_%';

@@ -19,11 +19,9 @@ import java.util.UUID;
  *   - Read-only:  "dl_ro_" + 8 slumptecken  (ex: dl_ro_a3f2b1c9)
  *   - Read/write: "dl_rw_" + 8 slumptecken  (ex: dl_rw_7e4d8f2a)
  *
- * Implementationsordning:
- *   Steg 1 – createReadOnlyUser:  CREATE USER + GRANT SELECT
- *   Steg 2 – createReadWriteUser: CREATE USER + GRANT SELECT, INSERT, UPDATE, DELETE
- *   Steg 3 – deleteUser:          REVOKE ALL + DROP USER
- *   Steg 4 – listUsers:           SELECT från pg_user WHERE usename LIKE 'dl_%'
+ * OBS: DDL-satser (CREATE USER, GRANT, DROP USER) stödjer inte prepared statement-parametrar
+ * i PostgreSQL. Användarnamn och lösenord sätts direkt i SQL-strängen, men är säkra eftersom
+ * båda genereras programmatiskt via UUID (ingen användarinmatning involverad).
  */
 @Service
 public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
@@ -46,64 +44,69 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
     }
 
     /**
-     * Steg 1: Skapa en PostgreSQL-användare med enbart läsbehörighet.
-     *
-     * SQL som ska köras via jdbcTemplate.execute():
-     *   CREATE USER {username} WITH PASSWORD '{password}';
-     *   GRANT CONNECT ON DATABASE {database} TO {username};
-     *   GRANT USAGE ON SCHEMA public TO {username};
-     *   GRANT SELECT ON ALL TABLES IN SCHEMA public TO {username};
+     * Skapar en PostgreSQL-användare med enbart SELECT-behörighet.
+     * Användaren får CONNECT på databasen, USAGE på schemat och SELECT på alla tabeller.
      */
     @Override
     public DbCredentials createReadOnlyUser(String database) {
         String username = "dl_ro_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String password = UUID.randomUUID().toString();
 
-        // TODO: implementera enligt SQL ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        jdbcTemplate.execute("CREATE USER " + username + " WITH PASSWORD '" + password + "'");
+        jdbcTemplate.execute("GRANT CONNECT ON DATABASE " + database + " TO " + username);
+        jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO " + username);
+        jdbcTemplate.execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + username);
+
+        return new DbCredentials(username, password, dbHost, dbPort, database, "read");
     }
 
     /**
-     * Steg 2: Skapa en PostgreSQL-användare med läs- och skrivbehörighet.
-     *
-     * SQL som ska köras via jdbcTemplate.execute():
-     *   CREATE USER {username} WITH PASSWORD '{password}';
-     *   GRANT CONNECT ON DATABASE {database} TO {username};
-     *   GRANT USAGE ON SCHEMA public TO {username};
-     *   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {username};
+     * Skapar en PostgreSQL-användare med SELECT, INSERT, UPDATE och DELETE-behörighet.
+     * Användaren får CONNECT på databasen, USAGE på schemat och full DML på alla tabeller.
      */
     @Override
     public DbCredentials createReadWriteUser(String database) {
         String username = "dl_rw_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String password = UUID.randomUUID().toString();
 
-        // TODO: implementera enligt SQL ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        jdbcTemplate.execute("CREATE USER " + username + " WITH PASSWORD '" + password + "'");
+        jdbcTemplate.execute("GRANT CONNECT ON DATABASE " + database + " TO " + username);
+        jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO " + username);
+        jdbcTemplate.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + username);
+
+        return new DbCredentials(username, password, dbHost, dbPort, database, "readwrite");
     }
 
     /**
-     * Steg 3: Ta bort en PostgreSQL-användare och återkalla alla rättigheter.
-     *
-     * SQL som ska köras:
-     *   REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM {username};
-     *   REVOKE ALL ON SCHEMA public FROM {username};
-     *   REVOKE CONNECT ON DATABASE {database} FROM {username};
-     *   DROP USER {username};
+     * Tar bort en PostgreSQL-användare och återkallar alla dess rättigheter.
+     * Rättigheter måste återkallas innan DROP USER kan köras.
      */
     @Override
     public void deleteUser(String username) {
-        // TODO: implementera enligt SQL ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        validateUsername(username);
+
+        jdbcTemplate.execute("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM " + username);
+        jdbcTemplate.execute("REVOKE ALL ON SCHEMA public FROM " + username);
+        jdbcTemplate.execute("REVOKE CONNECT ON DATABASE " + dbName + " FROM " + username);
+        jdbcTemplate.execute("DROP USER " + username);
     }
 
     /**
-     * Steg 4: Lista alla dynamiskt skapade användare (prefix "dl_").
-     *
-     * SQL: SELECT usename FROM pg_user WHERE usename LIKE 'dl_%'
+     * Listar alla dynamiskt skapade användare med prefix "dl_".
      */
     @Override
     public List<String> listUsers() {
-        // TODO: implementera enligt SQL ovan
-        throw new UnsupportedOperationException("Not implemented yet");
+        return jdbcTemplate.queryForList(
+            "SELECT usename FROM pg_user WHERE usename LIKE 'dl_%'",
+            String.class
+        );
+    }
+
+    // Säkerhetskontroll: tillåt bara borttagning av användare med prefixet "dl_"
+    // för att förhindra att admin-kontot eller andra systemanvändare råkar tas bort
+    private void validateUsername(String username) {
+        if (username == null || !username.matches("dl_(ro|rw)_[a-f0-9]{8}")) {
+            throw new IllegalArgumentException("Invalid username format: " + username);
+        }
     }
 }
