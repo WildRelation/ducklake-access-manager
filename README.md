@@ -8,13 +8,57 @@ Istället för att dela ut credentials manuellt kan användare besöka webbgrän
 
 ---
 
+## Hur studenter använder tjänsten
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        cbhcloud cluster                         │
+│                                                                 │
+│  ┌──────────────────────┐        ┌──────────────────────────┐   │
+│  │  ducklake-access-    │        │   Studentens deployment  │   │
+│  │  manager             │        │   (Jupyter / Python)     │   │
+│  │                      │        │                          │   │
+│  │  1. Student besöker  │        │  3. Student kör          │   │
+│  │     webbgränssnittet │        │     DuckDB-scriptet här  │   │
+│  │                      │        │          │               │   │
+│  │  2. Kopierar scriptet│        │          ▼               │   │
+│  │     med nycklarna    │        │   ducklake-catalog:5432  │   │
+│  └──────────────────────┘        │   ducklake-garage:3900   │   │
+│                                  └──────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────┐   ┌──────────────────────────────┐     │
+│  │  ducklake-catalog   │   │  ducklake-garage             │     │
+│  │  (PostgreSQL)       │   │  (S3 / Garage)               │     │
+│  └─────────────────────┘   └──────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────┘
+
+     Lokal dator
+  ┌──────────────┐
+  │  Webbläsare  │──── besöker access manager UI ────▶ (steg 1–2)
+  └──────────────┘
+
+  ⚠️  DuckDB-scriptet körs INTE lokalt — det körs från ett
+      deployment på kthcloud, där ducklake-catalog är nåbar.
+```
+
+**Steg för steg:**
+
+1. Besök `https://ducklake-access-manager.app.cloud.cbh.kth.se/` i webbläsaren
+2. Välj bucket och behörighet → klicka **Generate Key** → kopiera DuckDB-scriptet
+3. Skapa ett eget deployment på kthcloud (t.ex. Jupyter notebook eller Python-app)
+4. Kör DuckDB-scriptet **inifrån det deploymentet** — inte lokalt på din dator
+
+Hostname `ducklake-catalog` är bara nåbar inom cbhcloud-clustret.
+
+---
+
 ## Vad tjänsten gör
 
 När en användare begär en nyckel sker tre saker automatiskt:
 
 1. En S3-nyckel skapas i Garage med rätt behörighet på bucketen
 2. En PostgreSQL-användare skapas med rätt behörighet på databasen
-3. Ett färdigt DuckDB-script returneras — kopiera och kör direkt
+3. Ett färdigt DuckDB-script returneras — kopiera och kör inifrån ett kthcloud-deployment
 
 ```json
 {
