@@ -85,47 +85,55 @@ Besök `https://ducklake-access-manager.app.cloud.cbh.kth.se/`, generera en nyck
 
 ### 4. Kör scriptet
 
-Skapa en ny notebook i JupyterLab och kör:
+Skapa en ny notebook i JupyterLab och kör följande i en cell. Varje `con.execute()` måste vara ett eget anrop — DuckDB:s Python-API accepterar bara en SQL-sats per `execute()`-anrop.
 
 ```python
 import duckdb
 
 con = duckdb.connect()
-con.execute("""
-    -- klistra in scriptet härifrån --
-    INSTALL ducklake;
-    INSTALL postgres;
-    LOAD ducklake;
-    LOAD postgres;
 
-    CREATE OR REPLACE SECRET ( TYPE postgres, HOST 'ducklake-catalog', ... );
-    CREATE OR REPLACE SECRET garage_secret ( TYPE s3, ... );
-    ATTACH 'ducklake:postgres:dbname=ducklake' AS my_ducklake (DATA_PATH 's3://ducklake/');
-    USE my_ducklake;
+# Installera och ladda extensions
+con.execute("INSTALL ducklake")
+con.execute("INSTALL postgres")
+con.execute("LOAD ducklake")
+con.execute("LOAD postgres")
+
+# PostgreSQL-secret (ersätt med dina värden från access manager)
+con.execute("""
+    CREATE OR REPLACE SECRET (
+        TYPE postgres,
+        HOST 'ducklake-catalog',
+        PORT 5432,
+        DATABASE ducklake,
+        USER 'dl_ro_xxxxxxxx',
+        PASSWORD 'ditt-lösenord'
+    )
 """)
 
-# Kör nu queries mot DuckLake
-result = con.execute("SELECT * FROM my_table LIMIT 10").fetchdf()
-print(result)
-```
+# Garage S3-secret
+con.execute("""
+    CREATE OR REPLACE SECRET garage_secret (
+        TYPE s3,
+        PROVIDER config,
+        KEY_ID 'GKxxxxxxxx',
+        SECRET 'din-secret',
+        REGION 'garage',
+        ENDPOINT 'ducklake-garage:3900',
+        URL_STYLE 'path',
+        USE_SSL false
+    )
+""")
 
-### Alternativ: SSH + Python (utan Jupyter)
+# Anslut till DuckLake
+con.execute("""
+    ATTACH 'ducklake:postgres:dbname=ducklake' AS my_ducklake (
+        DATA_PATH 's3://ducklake/'
+    )
+""")
 
-Om du hellre vill köra direkt från terminalen:
-
-```bash
-# Anslut till ditt deployment
-ssh ditt-deployment@deploy.cloud.cbh.kth.se
-
-# Installera duckdb om det inte redan finns
-pip install duckdb
-
-# Kör ett Python-script
-python3 - <<'EOF'
-import duckdb
-con = duckdb.connect()
-con.execute("INSTALL ducklake; LOAD ducklake; ...")
-EOF
+# Kör queries
+print(con.execute("SHOW ALL TABLES").df())
+print(con.execute("SELECT * FROM my_ducklake.titanic LIMIT 10").df())
 ```
 
 ---
@@ -145,7 +153,8 @@ När en användare begär en nyckel sker tre saker automatiskt:
     "secretKey": "...",
     "bucketName": "ducklake",
     "permission": "read",
-    "endpoint": "https://ducklake-garage.deploy.cloud.cbh.kth.se"
+    "endpoint": "ducklake-garage:3900",
+    "region": "garage"
   },
   "dbCredentials": {
     "username": "dl_ro_7df3023f",
@@ -256,8 +265,9 @@ Se [IMPLEMENTATION.md](IMPLEMENTATION.md) Fas 5 för fullständiga instruktioner
 Snabbstart:
 ```bash
 # Öppna tunnlar i separata terminaler
+# OBS: tunnel mot port 3900 (nginx), inte 3903 — 3903 är blockerad av NetworkPolicy
 ssh -L 5433:localhost:5432 ducklake-catalog@deploy.cloud.cbh.kth.se
-ssh -L 3903:localhost:3903 ducklake-garage@deploy.cloud.cbh.kth.se
+ssh -L 3900:localhost:3900 ducklake-garage@deploy.cloud.cbh.kth.se
 
 # Konfigurera miljövariabler
 cp .env.example .env  # fyll i värden
@@ -346,6 +356,14 @@ CREATE OR REPLACE SECRET garage_secret (
 ```
 
 **Varför fungerar det bara inifrån kthcloud?** `ducklake-garage` är ett internt Kubernetes-servicename som bara löser upp inom cbhcloud-clustret. Scriptet är avsett att köras från ett eget deployment på kthcloud (t.ex. JupyterLab), inte lokalt.
+
+### 403 Invalid signature från Garage (nginx Host-header)
+
+**Symptom:** `AccessDenied: Forbidden: Invalid signature` trots rätt KEY_ID, SECRET, region och endpoint. Reproducerbart med boto3.
+
+**Orsak:** nginx:s standardvärde `proxy_set_header Host $host` skickar bara hostname utan port (`ducklake-garage`). S3 signature v4 inkluderar `Host`-headern i det signerade strängen. Klienten signerar med `Host: ducklake-garage:3900` (med port) men Garage tar emot `Host: ducklake-garage` (utan port) → signaturen matchar inte → 403.
+
+**Lösning:** `proxy_set_header Host $http_host` i nginx.conf — bevarar hela headern inklusive port. Dokumenterat i [`garage-cbhcloud-quickstart`](https://github.com/WildRelation/garage-cbhcloud-quickstart).
 
 ---
 
