@@ -309,6 +309,46 @@ docker push ghcr.io/wildrelation/ducklake-access-manager:latest
 
 ---
 
+## Kända problem och lösningar
+
+### S3-fel vid körning av DuckDB-script inifrån kthcloud
+
+**Symptom:** `AuthorizationHeaderMalformed: unexpected scope: .../local/s3/aws4_request` eller liknande signaturfel när man kör `SELECT` mot data i Garage.
+
+**Orsak:** Tre separata konfigurationsfel i det genererade scriptet:
+
+| Fel | Förklaring |
+|---|---|
+| `REGION 'local'` | Måste matcha `s3_region` i `garage.toml` — för denna instans är det `'garage'` |
+| `ENDPOINT 'https://...'` | DuckDB accepterar inte protokoll i `ENDPOINT` — ska vara `host:port` utan `https://` |
+| Publikt hostname | Det publika DNS-namnet för Garage löser inte upp inifrån kthcloud-clustret |
+
+**Lösning:** Sätt miljövariablerna i `ducklake-access-manager`-deploymentet korrekt:
+
+```
+GARAGE_S3_ENDPOINT = ducklake-garage:3900    ← host:port, inget protokoll, internt namn
+GARAGE_S3_REGION   = garage                  ← måste matcha s3_region i garage.toml
+```
+
+Det genererade scriptet ser då ut så här (korrekt):
+
+```sql
+CREATE OR REPLACE SECRET garage_secret (
+    TYPE s3,
+    PROVIDER config,
+    KEY_ID 'GKxxxxxxxx',
+    SECRET '...',
+    REGION 'garage',           -- matchar s3_region i garage.toml
+    ENDPOINT 'ducklake-garage:3900',  -- internt hostname, inget protokoll
+    URL_STYLE 'path',
+    USE_SSL false
+);
+```
+
+**Varför fungerar det bara inifrån kthcloud?** `ducklake-garage` är ett internt Kubernetes-servicename som bara löser upp inom cbhcloud-clustret. Scriptet är avsett att köras från ett eget deployment på kthcloud (t.ex. JupyterLab), inte lokalt.
+
+---
+
 ## Återstående arbete
 
 - **Autentisering (Fas 4)** — KTH Login (OIDC) via Spring Security så att `readwrite` kräver privilegierad användare
