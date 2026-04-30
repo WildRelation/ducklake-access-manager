@@ -33,9 +33,9 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
 
     public PostgresAccessTokenManager(
         JdbcTemplate jdbcTemplate,
-        @Value("${spring.datasource.host}") String dbHost,
-        @Value("${spring.datasource.port:5432}") int dbPort,
-        @Value("${spring.datasource.dbname}") String dbName
+        @Value("${ducklake.postgres.host}") String dbHost,
+        @Value("${ducklake.postgres.port:5432}") int dbPort,
+        @Value("${ducklake.postgres.dbname}") String dbName
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.dbHost = dbHost;
@@ -48,16 +48,16 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
      * Användaren får CONNECT på databasen, USAGE på schemat och SELECT på alla tabeller.
      */
     @Override
-    public DbCredentials createReadOnlyUser(String database) {
+    public DbCredentials createReadOnlyUser() {
         String username = "dl_ro_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String password = UUID.randomUUID().toString();
 
         jdbcTemplate.execute("CREATE USER " + username + " WITH PASSWORD '" + password + "'");
-        jdbcTemplate.execute("GRANT CONNECT ON DATABASE " + database + " TO " + username);
+        jdbcTemplate.execute("GRANT CONNECT ON DATABASE " + dbName + " TO " + username);
         jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO " + username);
         jdbcTemplate.execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + username);
 
-        return new DbCredentials(username, password, dbHost, dbPort, database, "read");
+        return new DbCredentials(username, password, dbHost, dbPort, dbName, "read");
     }
 
     /**
@@ -65,16 +65,16 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
      * Användaren får CONNECT på databasen, USAGE på schemat och full DML på alla tabeller.
      */
     @Override
-    public DbCredentials createReadWriteUser(String database) {
+    public DbCredentials createReadWriteUser() {
         String username = "dl_rw_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String password = UUID.randomUUID().toString();
 
         jdbcTemplate.execute("CREATE USER " + username + " WITH PASSWORD '" + password + "'");
-        jdbcTemplate.execute("GRANT CONNECT ON DATABASE " + database + " TO " + username);
+        jdbcTemplate.execute("GRANT CONNECT ON DATABASE " + dbName + " TO " + username);
         jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO " + username);
         jdbcTemplate.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + username);
 
-        return new DbCredentials(username, password, dbHost, dbPort, database, "readwrite");
+        return new DbCredentials(username, password, dbHost, dbPort, dbName, "readwrite");
     }
 
     /**

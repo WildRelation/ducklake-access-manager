@@ -37,7 +37,7 @@ public class KeyController {
     public KeyController(
         ObjectStoreAccessTokenManager objectStore,
         DatabaseAccessTokenManager database,
-        @Value("${postgres.public.host}") String postgresPublicHost
+        @Value("${ducklake.postgres.public-host}") String postgresPublicHost
     ) {
         this.objectStore = objectStore;
         this.database = database;
@@ -65,8 +65,8 @@ public class KeyController {
         };
 
         DbCredentials dbCreds = switch (request.permission()) {
-            case "readwrite" -> database.createReadWriteUser(request.bucketName());
-            default -> database.createReadOnlyUser(request.bucketName());
+            case "readwrite" -> database.createReadWriteUser();
+            default -> database.createReadOnlyUser();
         };
 
         String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);

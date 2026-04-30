@@ -95,7 +95,9 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
             GarageKeyListItem[].class
         );
 
-        return Arrays.stream(response.getBody())
+        GarageKeyListItem[] body = response.getBody();
+        if (body == null) return List.of();
+        return Arrays.stream(body)
             .map(item -> new AccessKey(item.id(), null, item.name(), null, garageEndpoint, garageRegion))
             .toList();
     }
@@ -118,7 +120,9 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
             Map.of("name", keyName),
             authHeaders()
         );
-        return restTemplate.postForObject(adminApiUrl + "/v2/CreateKey", request, GarageKeyResponse.class);
+        GarageKeyResponse created = restTemplate.postForObject(adminApiUrl + "/v2/CreateKey", request, GarageKeyResponse.class);
+        if (created == null) throw new IllegalStateException("Garage CreateKey returned null");
+        return created;
     }
 
     // Steg 2: GET /v2/GetBucketInfo?globalAlias={bucketName} – hämtar bucket-ID
@@ -129,7 +133,9 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
             new HttpEntity<>(authHeaders()),
             GarageBucketResponse.class
         );
-        return response.getBody().id();
+        GarageBucketResponse bucket = response.getBody();
+        if (bucket == null) throw new IllegalStateException("Garage GetBucketInfo returned null for bucket: " + bucketName);
+        return bucket.id();
     }
 
     // Steg 3: POST /v2/AllowBucketKey – kopplar nyckeln till bucketen med behörigheter

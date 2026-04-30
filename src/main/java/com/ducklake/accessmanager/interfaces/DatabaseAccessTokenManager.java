@@ -15,19 +15,17 @@ public interface DatabaseAccessTokenManager {
     /**
      * Skapar en PostgreSQL-användare med enbart SELECT-behörighet på alla tabeller.
      *
-     * @param database namn på databasen användaren ska ha åtkomst till
      * @return {@link DbCredentials} med användarnamn, lösenord och anslutningsdetaljer
      */
-    DbCredentials createReadOnlyUser(String database);
+    DbCredentials createReadOnlyUser();
 
     /**
      * Skapar en PostgreSQL-användare med SELECT, INSERT, UPDATE och DELETE-behörighet.
      * Får endast anropas av privilegierade användare.
      *
-     * @param database namn på databasen användaren ska ha åtkomst till
      * @return {@link DbCredentials} med användarnamn, lösenord och anslutningsdetaljer
      */
-    DbCredentials createReadWriteUser(String database);
+    DbCredentials createReadWriteUser();
 
     /**
      * Tar bort en PostgreSQL-användare och återkallar alla dess behörigheter.
