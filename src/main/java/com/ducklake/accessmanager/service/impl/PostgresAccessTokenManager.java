@@ -26,20 +26,19 @@ import java.util.UUID;
 @Service
 public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
 
+    private static final int DB_PORT = 5432;
+
     private final JdbcTemplate jdbcTemplate;
     private final String dbHost;
-    private final int dbPort;
     private final String dbName;
 
     public PostgresAccessTokenManager(
         JdbcTemplate jdbcTemplate,
         @Value("${ducklake.postgres.host}") String dbHost,
-        @Value("${ducklake.postgres.port:5432}") int dbPort,
         @Value("${ducklake.postgres.dbname}") String dbName
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.dbHost = dbHost;
-        this.dbPort = dbPort;
         this.dbName = dbName;
     }
 
@@ -57,7 +56,7 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
         jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO " + username);
         jdbcTemplate.execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + username);
 
-        return new DbCredentials(username, password, dbHost, dbPort, dbName, "read");
+        return new DbCredentials(username, password, dbHost, DB_PORT, dbName, "read");
     }
 
     /**
@@ -74,7 +73,7 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
         jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO " + username);
         jdbcTemplate.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + username);
 
-        return new DbCredentials(username, password, dbHost, dbPort, dbName, "readwrite");
+        return new DbCredentials(username, password, dbHost, DB_PORT, dbName, "readwrite");
     }
 
     /**
