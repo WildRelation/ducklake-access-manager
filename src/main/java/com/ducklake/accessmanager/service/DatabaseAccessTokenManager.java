@@ -1,4 +1,4 @@
-package com.ducklake.accessmanager.interfaces;
+package com.ducklake.accessmanager.service;
 
 import com.ducklake.accessmanager.model.DbCredentials;
 import java.util.List;
@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Hanterar generering och borttagning av PostgreSQL-användare med rätt behörigheter.
  *
- * Implementeras av {@link com.ducklake.accessmanager.implementations.PostgresAccessTokenManager}
+ * Implementeras av {@link com.ducklake.accessmanager.service.impl.PostgresAccessTokenManager}
  * via JDBC. Användarna skapas dynamiskt med slumpmässiga lösenord och namnges
  * med prefix "dl_ro_" (read-only) eller "dl_rw_" (read/write).
  */

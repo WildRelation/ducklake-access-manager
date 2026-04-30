@@ -1,4 +1,4 @@
-package com.ducklake.accessmanager.interfaces;
+package com.ducklake.accessmanager.service;
 
 import com.ducklake.accessmanager.model.AccessKey;
 import java.util.List;
@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Hanterar generering och borttagning av åtkomstnycklar för objektlagring (S3-kompatibel).
  *
- * Implementeras av {@link com.ducklake.accessmanager.implementations.GarageAccessTokenManager}
+ * Implementeras av {@link com.ducklake.accessmanager.service.impl.GarageAccessTokenManager}
  * för produktion. Kan även implementeras för MinIO vid lokal utveckling.
  *
  * Varje nyckel kopplas till en specifik bucket och tilldelas antingen

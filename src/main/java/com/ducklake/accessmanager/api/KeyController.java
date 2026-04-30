@@ -1,7 +1,7 @@
 package com.ducklake.accessmanager.api;
 
-import com.ducklake.accessmanager.interfaces.DatabaseAccessTokenManager;
-import com.ducklake.accessmanager.interfaces.ObjectStoreAccessTokenManager;
+import com.ducklake.accessmanager.service.DatabaseAccessTokenManager;
+import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.model.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;

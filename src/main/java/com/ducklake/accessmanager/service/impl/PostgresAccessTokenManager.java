@@ -1,6 +1,6 @@
-package com.ducklake.accessmanager.implementations;
+package com.ducklake.accessmanager.service.impl;
 
-import com.ducklake.accessmanager.interfaces.DatabaseAccessTokenManager;
+import com.ducklake.accessmanager.service.DatabaseAccessTokenManager;
 import com.ducklake.accessmanager.model.DbCredentials;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;

@@ -1,9 +1,9 @@
-package com.ducklake.accessmanager.implementations;
+package com.ducklake.accessmanager.service.impl;
 
-import com.ducklake.accessmanager.garage.GarageBucketResponse;
-import com.ducklake.accessmanager.garage.GarageKeyListItem;
-import com.ducklake.accessmanager.garage.GarageKeyResponse;
-import com.ducklake.accessmanager.interfaces.ObjectStoreAccessTokenManager;
+import com.ducklake.accessmanager.infrastructure.garage.GarageBucketResponse;
+import com.ducklake.accessmanager.infrastructure.garage.GarageKeyListItem;
+import com.ducklake.accessmanager.infrastructure.garage.GarageKeyResponse;
+import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.model.AccessKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;

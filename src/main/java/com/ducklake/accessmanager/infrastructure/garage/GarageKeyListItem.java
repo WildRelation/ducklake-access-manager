@@ -1,4 +1,4 @@
-package com.ducklake.accessmanager.garage;
+package com.ducklake.accessmanager.infrastructure.garage;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
