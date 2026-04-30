@@ -58,6 +58,9 @@ public class KeyController {
      */
     @PostMapping("/generate")
     public ResponseEntity<GeneratedCredentials> generate(@RequestBody KeyRequest request) {
+        if (request.bucketName() == null || !request.bucketName().matches("[a-z0-9][a-z0-9\\-]{1,61}[a-z0-9]")) {
+            return ResponseEntity.badRequest().build();
+        }
         // TODO: kontrollera användarroll innan "readwrite" tillåts
         AccessKey s3Key = switch (request.permission()) {
             case "readwrite" -> objectStore.createReadWriteKey(request.bucketName(), "key-" + request.bucketName());
