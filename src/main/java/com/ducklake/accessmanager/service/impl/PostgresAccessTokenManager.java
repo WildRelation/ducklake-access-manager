@@ -26,6 +26,10 @@ import java.util.UUID;
 @Service
 public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
 
+    // Hardcoded instead of @Value because Spring Boot's relaxed binding maps Kubernetes
+    // service env vars (e.g. DUCKLAKE_CATALOG_PORT=tcp://10.x.x.x:5432, injected for the
+    // ducklake-catalog service) to Spring properties, overriding any configured value.
+    // PostgreSQL always runs on 5432 in this setup, so a constant is the correct choice.
     private static final int DB_PORT = 5432;
 
     private final JdbcTemplate jdbcTemplate;
