@@ -16,7 +16,7 @@ Koden är skriven på engelska; kommentarer och dokumentation på svenska.
 
 ## Fas 1 – GarageAccessTokenManager ✅ Implementerad
 
-**Fil:** `implementations/GarageAccessTokenManager.java`
+**Fil:** `service/impl/GarageAccessTokenManager.java`
 
 Garage Admin API v2 körs internt på port 3903 i `ducklake-garage`-deploymentet.
 Alla anrop autentiseras med en Bearer-token via `Authorization`-headern.
@@ -101,7 +101,7 @@ Svar: lista av `{ "id": "...", "name": "..." }`.
 
 ## Fas 2 – PostgresAccessTokenManager ✅ Implementerad
 
-**Fil:** `implementations/PostgresAccessTokenManager.java`
+**Fil:** `service/impl/PostgresAccessTokenManager.java`
 
 Ansluter till `ducklake-catalog` med admin-kontot via JDBC (`JdbcTemplate`).
 Kör rå SQL för att skapa och ta bort användare.

@@ -236,12 +236,17 @@ Endast användare med dessa prefix kan tas bort — admin-kontot skyddas.
 
 ```
 src/main/java/com/ducklake/accessmanager/
-├── interfaces/
+├── service/
 │   ├── ObjectStoreAccessTokenManager.java   # Interface för S3-hantering
-│   └── DatabaseAccessTokenManager.java      # Interface för PostgreSQL-hantering
-├── implementations/
-│   ├── GarageAccessTokenManager.java        # Garage Admin API v2
-│   └── PostgresAccessTokenManager.java      # JDBC + DDL SQL
+│   ├── DatabaseAccessTokenManager.java      # Interface för PostgreSQL-hantering
+│   └── impl/
+│       ├── GarageAccessTokenManager.java    # Garage Admin API v2
+│       └── PostgresAccessTokenManager.java  # JDBC + DDL SQL
+├── infrastructure/
+│   └── garage/
+│       ├── GarageBucketResponse.java        # DTO för GetBucketInfo
+│       ├── GarageKeyListItem.java           # DTO för ListKeys
+│       └── GarageKeyResponse.java           # DTO för CreateKey
 ├── api/
 │   ├── KeyController.java                   # REST-endpoints
 │   └── HealthController.java                # /healthz
