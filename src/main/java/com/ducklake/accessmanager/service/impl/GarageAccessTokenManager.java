@@ -6,7 +6,11 @@ import com.ducklake.accessmanager.infrastructure.garage.GarageKeyResponse;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.model.AccessKey;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -15,10 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Implementerar {@link ObjectStoreAccessTokenManager} mot Garages Admin API v2 (port 3903).
+ * Implementerar {@link ObjectStoreAccessTokenManager} mot Garages Admin API v2.
  *
- * Används i produktion på cbhcloud. Kommunicerar med den interna Admin API:n
- * via HTTP och autentiserar med en Bearer-token (GARAGE_ADMIN_TOKEN).
+ * Används i produktion på cbhcloud. Kommunicerar med Admin API:n via nginx-proxyn
+ * i ducklake-garage (port 3900), som vidarebefordrar /v2/* till intern port 3903.
+ * Autentiserar med en Bearer-token (GARAGE_ADMIN_TOKEN).
  *
  * Flöde för att skapa en nyckel:
  *   1. POST /v2/CreateKey          → skapar nyckeln, returnerar accessKeyId + secretAccessKey

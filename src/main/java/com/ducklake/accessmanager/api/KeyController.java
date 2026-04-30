@@ -1,11 +1,21 @@
 package com.ducklake.accessmanager.api;
 
+import com.ducklake.accessmanager.model.AccessKey;
+import com.ducklake.accessmanager.model.DbCredentials;
+import com.ducklake.accessmanager.model.GeneratedCredentials;
+import com.ducklake.accessmanager.model.KeyRequest;
 import com.ducklake.accessmanager.service.DatabaseAccessTokenManager;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
-import com.ducklake.accessmanager.model.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
