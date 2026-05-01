@@ -4,6 +4,20 @@ Tjänst för automatisk generering och hantering av åtkomstnycklar till DuckLak
 
 Istället för att dela ut credentials manuellt kan användare besöka webbgränssnittet och få ett färdigt DuckDB-anslutningsscript på några sekunder.
 
+### Typiskt användningsfall
+
+DuckLake fungerar som ett centralt data lake för kursen — alla datasets lagras där. Studenter genererar egna credentials via den här tjänsten och använder dem från ett eget deployment på cbhcloud:
+
+```
+ducklake-access-manager  →  credentials
+        ↓
+studentens deployment på cbhcloud
+  ├── läser data från DuckLake (PostgreSQL + Garage S3)
+  └── tränar modeller med GPU (PyTorch, TensorFlow, etc.)
+```
+
+Deploymentet kan vara JupyterLab, VS Code Server eller ett Python-skript — med eller utan GPU beroende på workload. GPU är relevant när studenten vill träna ML-modeller på data från DuckLake.
+
 **Produktions-URL:** `https://ducklake-access-manager.app.cloud.cbh.kth.se`
 
 ---
