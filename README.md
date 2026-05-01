@@ -62,12 +62,29 @@ Gå till [cloud.cbh.kth.se](https://cloud.cbh.kth.se) och skapa ett nytt deploym
 
 | Fält | Värde |
 |---|---|
-| Image tag | `ghcr.io/wildrelation/ducklake-student:latest` |
+| Image tag | se Dockerfile nedan |
 | PORT | `8888` |
 | Visibility | `Public` |
 | Health check | `/lab` |
 
-> Imagen innehåller JupyterLab + DuckDB + ducklake- och postgres-extensions förinstallerat.
+Bygg en egen image med följande `Dockerfile`:
+
+```dockerfile
+FROM quay.io/jupyter/base-notebook:latest
+
+RUN pip install duckdb jupyterlab
+
+USER root
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+USER ${NB_UID}
+```
+
+```bash
+docker build -t ghcr.io/<ditt-användarnamn>/ducklake-student:latest .
+docker push ghcr.io/<ditt-användarnamn>/ducklake-student:latest
+```
+
+> DuckDB-extensionerna `ducklake` och `postgres` installeras automatiskt första gången du kör `INSTALL ducklake` / `INSTALL postgres` i DuckDB.
 
 **Viktigt — cbhcloud-specifika krav:**
 
