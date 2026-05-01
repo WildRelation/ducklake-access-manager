@@ -74,13 +74,14 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
 
     /**
      * Permanently deletes a key.
-     * Uses POST /v2/DeleteKey — the Garage Admin API v2 is RPC-style (POST for all operations).
+     * Uses POST /v2/DeleteKey?id={keyId} — the Garage Admin API v2 is RPC-style (POST for all
+     * operations), but DeleteKey takes the key ID as a query parameter, not in the request body.
      */
     @Override
     public void deleteKey(String keyId) {
         restTemplate.postForObject(
-            adminApiUrl + "/v2/DeleteKey",
-            new HttpEntity<>(Map.of("id", keyId), authHeaders()),
+            adminApiUrl + "/v2/DeleteKey?id=" + keyId,
+            new HttpEntity<>(authHeaders()),
             Void.class
         );
     }
