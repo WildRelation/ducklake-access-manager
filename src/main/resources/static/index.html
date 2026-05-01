@@ -256,8 +256,38 @@ function CredModal({ creds, onClose }) {
             </div>
           </div>
 
+          {/* .env block */}
+          <div style={{ padding: '0 24px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg3)', letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                .env / Environment Variables
+              </div>
+              <CopyBtn text={creds.envBlock} id="env" copied={copied} onCopy={onCopy} />
+            </div>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 14px', borderBottom: '1px solid var(--border)',
+                background: 'rgba(255,255,255,.02)',
+              }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['#f87171','#fbbf24','#4ade80'].map(c => (
+                    <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c, opacity: .6 }} />
+                  ))}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--fg3)', fontFamily: 'var(--mono)' }}>.env</span>
+                <div style={{ width: 40 }} />
+              </div>
+              <pre style={{
+                fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.7,
+                color: 'var(--fg)', padding: '16px',
+                overflow: 'auto', margin: 0, whiteSpace: 'pre',
+              }}>{creds.envBlock}</pre>
+            </div>
+          </div>
+
           {/* connection script */}
-          <div style={{ padding: '20px 24px 24px' }}>
+          <div style={{ padding: '0 24px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg3)', letterSpacing: '.08em', textTransform: 'uppercase' }}>
                 DuckDB Connection Script
@@ -390,6 +420,20 @@ function App() {
       /* save keyId → pgUsername + permission mapping */
       saveKeyMapping(data.s3Key.keyId, data.dbCredentials.username, data.s3Key.permission);
 
+      const envBlock = [
+        `AWS_ACCESS_KEY_ID=${data.s3Key.keyId}`,
+        `AWS_SECRET_ACCESS_KEY=${data.s3Key.secretKey}`,
+        `S3_ENDPOINT=${data.s3Key.endpoint}`,
+        `S3_REGION=${data.s3Key.region}`,
+        `S3_BUCKET=${data.s3Key.bucketName}`,
+        ``,
+        `PGHOST=${data.dbCredentials.host}`,
+        `PGPORT=${data.dbCredentials.port}`,
+        `PGDATABASE=${data.dbCredentials.database}`,
+        `PGUSER=${data.dbCredentials.username}`,
+        `PGPASSWORD=${data.dbCredentials.password}`,
+      ].join('\n');
+
       const creds = {
         keyId:       data.s3Key.keyId,
         secretKey:   data.s3Key.secretKey,
@@ -402,6 +446,7 @@ function App() {
         pgPass:      data.dbCredentials.password,
         permission,
         duckdbScript: data.duckdbScript,
+        envBlock,
       };
 
       setModal(creds);
