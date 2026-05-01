@@ -57,6 +57,9 @@ public class KeyController {
     /**
      * Generates a key pair (S3 + PostgreSQL) and returns a ready-to-use DuckDB script.
      *
+     * TODO: this endpoint is unauthenticated — anyone can generate credentials, and "readwrite"
+     * is not restricted to privileged users. This will be fixed when authentication is implemented.
+     *
      * Request body:
      *   - bucketName: the Garage bucket to grant access to
      *   - permission: "read" (default) or "readwrite" (requires privileged user)
@@ -102,8 +105,11 @@ public class KeyController {
     /**
      * Deletes a key from both Garage and PostgreSQL.
      *
+     * TODO: this endpoint is unauthenticated — any user can delete any key, including ones
+     * they did not create. This will be fixed when authentication is implemented.
+     *
      * @param keyId      the Garage key ID
-     * @param pgUsername PostgreSQL-användaren som ska tas bort samtidigt
+     * @param pgUsername the PostgreSQL user to delete alongside the key
      */
     @DeleteMapping("/{keyId}")
     public ResponseEntity<Void> delete(@PathVariable String keyId, @RequestParam(required = false) String pgUsername) {
