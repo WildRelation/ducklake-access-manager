@@ -80,7 +80,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     public void deleteKey(String keyId) {
         restTemplate.postForObject(
             adminApiUrl + "/v2/DeleteKey",
-            new HttpEntity<>(Map.of("accessKeyId", keyId), authHeaders()),
+            new HttpEntity<>(Map.of("id", keyId), authHeaders()),
             Void.class
         );
     }
