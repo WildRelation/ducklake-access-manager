@@ -10,18 +10,18 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Implementerar {@link DatabaseAccessTokenManager} mot PostgreSQL via JDBC.
+ * Implements {@link DatabaseAccessTokenManager} against PostgreSQL via JDBC.
  *
- * Ansluter till ducklake-catalog-deploymentet med admin-behörighet och
- * skapar dynamiska användare med minimala rättigheter (principle of least privilege).
+ * Connects to the ducklake-catalog deployment with admin credentials and
+ * creates dynamic users following the principle of least privilege.
  *
- * Användare namnges automatiskt:
- *   - Read-only:  "dl_ro_" + 8 slumptecken  (ex: dl_ro_a3f2b1c9)
- *   - Read/write: "dl_rw_" + 8 slumptecken  (ex: dl_rw_7e4d8f2a)
+ * Users are named automatically:
+ *   - Read-only:  "dl_ro_" + 8 random hex chars  (e.g. dl_ro_a3f2b1c9)
+ *   - Read/write: "dl_rw_" + 8 random hex chars  (e.g. dl_rw_7e4d8f2a)
  *
- * OBS: DDL-satser (CREATE USER, GRANT, DROP USER) stödjer inte prepared statement-parametrar
- * i PostgreSQL. Användarnamn och lösenord sätts direkt i SQL-strängen, men är säkra eftersom
- * båda genereras programmatiskt via UUID (ingen användarinmatning involverad).
+ * Note: DDL statements (CREATE USER, GRANT, DROP USER) do not support prepared statement
+ * parameters in PostgreSQL. Usernames and passwords are interpolated directly into the SQL,
+ * but are safe because both are generated programmatically via UUID (no user input involved).
  */
 @Service
 public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
@@ -47,8 +47,8 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
     }
 
     /**
-     * Skapar en PostgreSQL-användare med enbart SELECT-behörighet.
-     * Användaren får CONNECT på databasen, USAGE på schemat och SELECT på alla tabeller.
+     * Creates a PostgreSQL user with SELECT-only permission.
+     * Grants CONNECT on the database, USAGE on the schema, and SELECT on all tables.
      */
     @Override
     public DbCredentials createReadOnlyUser() {
@@ -64,8 +64,8 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
     }
 
     /**
-     * Skapar en PostgreSQL-användare med SELECT, INSERT, UPDATE och DELETE-behörighet.
-     * Användaren får CONNECT på databasen, USAGE på schemat och full DML på alla tabeller.
+     * Creates a PostgreSQL user with SELECT, INSERT, UPDATE, and DELETE permission.
+     * Grants CONNECT on the database, USAGE on the schema, and full DML on all tables.
      */
     @Override
     public DbCredentials createReadWriteUser() {
@@ -81,8 +81,8 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
     }
 
     /**
-     * Tar bort en PostgreSQL-användare och återkallar alla dess rättigheter.
-     * Rättigheter måste återkallas innan DROP USER kan köras.
+     * Deletes a PostgreSQL user and revokes all its privileges.
+     * Privileges must be revoked before DROP USER can be executed.
      */
     @Override
     public void deleteUser(String username) {
@@ -95,7 +95,7 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
     }
 
     /**
-     * Listar alla dynamiskt skapade användare med prefix "dl_".
+     * Lists all dynamically created users with the "dl_" prefix.
      */
     @Override
     public List<String> listUsers() {
@@ -105,8 +105,8 @@ public class PostgresAccessTokenManager implements DatabaseAccessTokenManager {
         );
     }
 
-    // Säkerhetskontroll: tillåt bara borttagning av användare med prefixet "dl_"
-    // för att förhindra att admin-kontot eller andra systemanvändare råkar tas bort
+    // Safety check: only allow deletion of users with the "dl_" prefix
+    // to prevent accidental removal of the admin account or other system users
     private void validateUsername(String username) {
         if (username == null || !username.matches("dl_(ro|rw)_[a-f0-9]{8}")) {
             throw new IllegalArgumentException("Invalid username format: " + username);

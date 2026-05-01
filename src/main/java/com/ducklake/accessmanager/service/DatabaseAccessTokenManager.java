@@ -4,40 +4,40 @@ import com.ducklake.accessmanager.model.DbCredentials;
 import java.util.List;
 
 /**
- * Hanterar generering och borttagning av PostgreSQL-användare med rätt behörigheter.
+ * Manages creation and deletion of PostgreSQL users with the appropriate permissions.
  *
- * Implementeras av {@link com.ducklake.accessmanager.service.impl.PostgresAccessTokenManager}
- * via JDBC. Användarna skapas dynamiskt med slumpmässiga lösenord och namnges
- * med prefix "dl_ro_" (read-only) eller "dl_rw_" (read/write).
+ * Implemented by {@link com.ducklake.accessmanager.service.impl.PostgresAccessTokenManager}
+ * via JDBC. Users are created dynamically with random passwords and named with the
+ * prefix "dl_ro_" (read-only) or "dl_rw_" (read/write).
  */
 public interface DatabaseAccessTokenManager {
 
     /**
-     * Skapar en PostgreSQL-användare med enbart SELECT-behörighet på alla tabeller.
+     * Creates a PostgreSQL user with SELECT-only permission on all tables.
      *
-     * @return {@link DbCredentials} med användarnamn, lösenord och anslutningsdetaljer
+     * @return {@link DbCredentials} with username, password, and connection details
      */
     DbCredentials createReadOnlyUser();
 
     /**
-     * Skapar en PostgreSQL-användare med SELECT, INSERT, UPDATE och DELETE-behörighet.
-     * Får endast anropas av privilegierade användare.
+     * Creates a PostgreSQL user with SELECT, INSERT, UPDATE, and DELETE permission.
+     * Should only be called for privileged users.
      *
-     * @return {@link DbCredentials} med användarnamn, lösenord och anslutningsdetaljer
+     * @return {@link DbCredentials} with username, password, and connection details
      */
     DbCredentials createReadWriteUser();
 
     /**
-     * Tar bort en PostgreSQL-användare och återkallar alla dess behörigheter.
+     * Deletes a PostgreSQL user and revokes all its privileges.
      *
-     * @param username användarnamnet som ska tas bort
+     * @param username the username to delete
      */
     void deleteUser(String username);
 
     /**
-     * Listar alla dynamiskt skapade användare (de med prefix "dl_").
+     * Lists all dynamically created users (those with the "dl_" prefix).
      *
-     * @return lista av användarnamn
+     * @return list of usernames
      */
     List<String> listUsers();
 }

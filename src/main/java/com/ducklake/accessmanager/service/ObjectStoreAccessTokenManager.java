@@ -4,46 +4,45 @@ import com.ducklake.accessmanager.model.AccessKey;
 import java.util.List;
 
 /**
- * Hanterar generering och borttagning av åtkomstnycklar för objektlagring (S3-kompatibel).
+ * Manages generation and deletion of access keys for S3-compatible object storage.
  *
- * Implementeras av {@link com.ducklake.accessmanager.service.impl.GarageAccessTokenManager}
- * för produktion. Kan även implementeras för MinIO vid lokal utveckling.
+ * Implemented by {@link com.ducklake.accessmanager.service.impl.GarageAccessTokenManager}
+ * for production. Can also be implemented for MinIO in local development.
  *
- * Varje nyckel kopplas till en specifik bucket och tilldelas antingen
- * läs- eller läs/skriv-behörighet.
+ * Each key is scoped to a specific bucket and granted either read-only or read/write permission.
  */
 public interface ObjectStoreAccessTokenManager {
 
     /**
-     * Skapar en nyckel med enbart läsbehörighet (GET) för angiven bucket.
+     * Creates a read-only key (GET) for the given bucket.
      *
-     * @param bucketName namn på den bucket nyckeln ska ha åtkomst till
-     * @param keyName    ett beskrivande namn för nyckeln
-     * @return {@link AccessKey} med keyId, secretKey och endpoint
+     * @param bucketName the bucket the key should have access to
+     * @param keyName    a descriptive name for the key
+     * @return {@link AccessKey} with keyId, secretKey, and endpoint
      */
     AccessKey createReadOnlyKey(String bucketName, String keyName);
 
     /**
-     * Skapar en nyckel med läs- och skrivbehörighet (GET, PUT, DELETE) för angiven bucket.
-     * Får endast anropas av privilegierade användare.
+     * Creates a read/write key (GET, PUT, DELETE) for the given bucket.
+     * Should only be called for privileged users.
      *
-     * @param bucketName namn på den bucket nyckeln ska ha åtkomst till
-     * @param keyName    ett beskrivande namn för nyckeln
-     * @return {@link AccessKey} med keyId, secretKey och endpoint
+     * @param bucketName the bucket the key should have access to
+     * @param keyName    a descriptive name for the key
+     * @return {@link AccessKey} with keyId, secretKey, and endpoint
      */
     AccessKey createReadWriteKey(String bucketName, String keyName);
 
     /**
-     * Tar bort en nyckel permanent från objektlagringen.
+     * Permanently deletes a key from object storage.
      *
-     * @param keyId det unika ID:t för nyckeln som ska tas bort
+     * @param keyId the unique ID of the key to delete
      */
     void deleteKey(String keyId);
 
     /**
-     * Listar alla nycklar som finns registrerade i objektlagringen.
+     * Lists all keys registered in object storage.
      *
-     * @return lista av {@link AccessKey}
+     * @return list of {@link AccessKey}
      */
     List<AccessKey> listKeys();
 }

@@ -5,8 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Hälsokontroll-endpoint för cbhcloud deployment.
- * Returnerar HTTP 200 när tjänsten är igång.
+ * Health check endpoint for the cbhcloud deployment.
+ * Returns HTTP 200 when the service is running.
  */
 @RestController
 public class HealthController {

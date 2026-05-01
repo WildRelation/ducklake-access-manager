@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 /**
- * Svar från GET /v2/GetBucketInfo.
- * Används för att slå upp bucket-ID:t utifrån ett globalAlias (bucket-namn).
+ * Response from GET /v2/GetBucketInfo.
+ * Used to resolve the bucket ID from a globalAlias (bucket name).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record GarageBucketResponse(

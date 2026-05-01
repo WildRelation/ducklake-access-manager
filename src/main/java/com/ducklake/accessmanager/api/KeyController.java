@@ -20,21 +20,21 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * REST-kontroller för nyckelhantering.
+ * REST controller for key management.
  *
- * Exponerar tre endpoints:
+ * Exposes three endpoints:
  *
- *   POST   /api/keys/generate  – Generera nya nycklar (Garage + PostgreSQL) och returnera DuckDB-script
- *   GET    /api/keys           – Lista alla befintliga nycklar
- *   DELETE /api/keys/{keyId}   – Ta bort en nyckel från både Garage och PostgreSQL
+ *   POST   /api/keys/generate  – Generate new keys (Garage + PostgreSQL) and return a DuckDB script
+ *   GET    /api/keys           – List all existing keys
+ *   DELETE /api/keys/{keyId}   – Delete a key from both Garage and PostgreSQL
  *
- * Kontrollern delegerar all logik till {@link ObjectStoreAccessTokenManager}
- * och {@link DatabaseAccessTokenManager}, och håller sig själv fri från
- * implementationsdetaljer om Garage eller PostgreSQL.
+ * The controller delegates all logic to {@link ObjectStoreAccessTokenManager}
+ * and {@link DatabaseAccessTokenManager}, keeping itself free from
+ * implementation details about Garage or PostgreSQL.
  *
- * TODO innan denna kontroller fungerar i produktion:
- *   - Lägg till autentisering (vem är inloggad?)
- *   - Verifiera att oprivilegierade användare inte kan begära "readwrite"
+ * TODO before this controller is production-ready:
+ *   - Add authentication (who is the caller?)
+ *   - Verify that unprivileged users cannot request "readwrite"
  */
 @RestController
 @RequestMapping("/api/keys")
@@ -55,16 +55,16 @@ public class KeyController {
     }
 
     /**
-     * Genererar ett par nycklar (S3 + PostgreSQL) och returnerar ett färdigt DuckDB-script.
+     * Generates a key pair (S3 + PostgreSQL) and returns a ready-to-use DuckDB script.
      *
-     * Begäran innehåller:
-     *   - bucketName: vilken Garage-bucket åtkomst ska ges till
-     *   - permission: "read" (standard) eller "readwrite" (kräver privilegierad användare)
+     * Request body:
+     *   - bucketName: the Garage bucket to grant access to
+     *   - permission: "read" (default) or "readwrite" (requires privileged user)
      *
-     * Svar innehåller:
-     *   - s3Key:          keyId, secretKey, endpoint för Garage
-     *   - dbCredentials:  username, password, host för PostgreSQL
-     *   - duckdbScript:   färdigt SQL-script att klistra in i DuckDB
+     * Response contains:
+     *   - s3Key:         keyId, secretKey, endpoint for Garage
+     *   - dbCredentials: username, password, host for PostgreSQL
+     *   - duckdbScript:  ready-to-run SQL script for DuckDB
      */
     @PostMapping("/generate")
     public ResponseEntity<GeneratedCredentials> generate(@RequestBody KeyRequest request) {
@@ -92,7 +92,7 @@ public class KeyController {
     }
 
     /**
-     * Returnerar alla nycklar som finns registrerade i Garage.
+     * Returns all keys registered in Garage.
      */
     @GetMapping
     public ResponseEntity<List<AccessKey>> list() {
@@ -100,9 +100,9 @@ public class KeyController {
     }
 
     /**
-     * Tar bort en nyckel från både Garage och PostgreSQL.
+     * Deletes a key from both Garage and PostgreSQL.
      *
-     * @param keyId      Garage-nyckelns ID
+     * @param keyId      the Garage key ID
      * @param pgUsername PostgreSQL-användaren som ska tas bort samtidigt
      */
     @DeleteMapping("/{keyId}")
@@ -114,7 +114,7 @@ public class KeyController {
         return ResponseEntity.noContent().build();
     }
 
-    // Bygger ett färdigt DuckDB-script med de genererade nycklarna
+    // Builds a ready-to-run DuckDB script with the generated credentials
     private String buildDuckdbScript(AccessKey s3Key, DbCredentials db, String bucketName, String pgHost) {
         return """
             -- Run this script from a deployment on kthcloud.

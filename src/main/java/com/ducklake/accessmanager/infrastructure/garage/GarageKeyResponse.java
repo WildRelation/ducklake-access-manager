@@ -3,8 +3,8 @@ package com.ducklake.accessmanager.infrastructure.garage;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Svar från Garage Admin API vid skapande av en nyckel (POST /v2/CreateKey).
- * Fältet secretAccessKey returneras endast vid skapandet – sparas inte av Garage efteråt.
+ * Response from the Garage Admin API when creating a key (POST /v2/CreateKey).
+ * The secretAccessKey is only returned at creation time — Garage does not store it afterwards.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record GarageKeyResponse(

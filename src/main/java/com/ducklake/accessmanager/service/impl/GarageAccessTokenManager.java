@@ -19,18 +19,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Implementerar {@link ObjectStoreAccessTokenManager} mot Garages Admin API v2.
+ * Implements {@link ObjectStoreAccessTokenManager} against the Garage Admin API v2.
  *
- * Används i produktion på cbhcloud. Kommunicerar med Admin API:n via nginx-proxyn
- * i ducklake-garage (port 3900), som vidarebefordrar /v2/* till intern port 3903.
- * Autentiserar med en Bearer-token (GARAGE_ADMIN_TOKEN).
+ * Used in production on cbhcloud. Communicates with the Admin API via the nginx proxy
+ * in ducklake-garage (port 3900), which forwards /v2/* to the internal port 3903.
+ * Authenticates with a Bearer token (GARAGE_ADMIN_TOKEN).
  *
- * Flöde för att skapa en nyckel:
- *   1. POST /v2/CreateKey          → skapar nyckeln, returnerar accessKeyId + secretAccessKey
- *   2. GET  /v2/GetBucketInfo      → hämtar bucket-ID utifrån bucket-namn (globalAlias)
- *   3. POST /v2/AllowBucketKey     → kopplar nyckeln till bucketen med rätt behörighet
+ * Key creation flow:
+ *   1. POST /v2/CreateKey       → creates the key, returns accessKeyId + secretAccessKey
+ *   2. GET  /v2/GetBucketInfo   → resolves the bucket ID from its name (globalAlias)
+ *   3. POST /v2/AllowBucketKey  → grants the key access to the bucket with the given permissions
  *
- * API-dokumentation: https://garagehq.deuxfleurs.fr/api/garage-admin-v2.html
+ * API reference: https://garagehq.deuxfleurs.fr/api/garage-admin-v2.html
  */
 @Service
 public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
@@ -55,8 +55,8 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     }
 
     /**
-     * Skapar en read-only nyckel för en specifik bucket.
-     * Steg: CreateKey → GetBucketInfo → AllowBucketKey (read: true, write: false)
+     * Creates a read-only key for a specific bucket.
+     * Steps: CreateKey → GetBucketInfo → AllowBucketKey (read: true, write: false)
      */
     @Override
     public AccessKey createReadOnlyKey(String bucketName, String keyName) {
@@ -64,8 +64,8 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     }
 
     /**
-     * Skapar en read/write-nyckel för en specifik bucket.
-     * Steg: CreateKey → GetBucketInfo → AllowBucketKey (read: true, write: true)
+     * Creates a read/write key for a specific bucket.
+     * Steps: CreateKey → GetBucketInfo → AllowBucketKey (read: true, write: true)
      */
     @Override
     public AccessKey createReadWriteKey(String bucketName, String keyName) {
@@ -73,8 +73,8 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     }
 
     /**
-     * Tar bort en nyckel permanent.
-     * Anrop: POST /v2/DeleteKey  (Garage Admin API v2 uses POST for all operations)
+     * Permanently deletes a key.
+     * Uses POST /v2/DeleteKey — the Garage Admin API v2 is RPC-style (POST for all operations).
      */
     @Override
     public void deleteKey(String keyId) {
@@ -86,9 +86,8 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     }
 
     /**
-     * Listar alla nycklar registrerade i Garage.
-     * Anrop: GET /v2/ListKeys
-     * Returnerar id + namn per nyckel (secretAccessKey är inte tillgänglig efter skapandet).
+     * Lists all keys registered in Garage.
+     * Uses GET /v2/ListKeys — returns id and name per key (secretAccessKey is not available after creation).
      */
     @Override
     public List<AccessKey> listKeys() {
@@ -106,9 +105,9 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
             .toList();
     }
 
-    // --- Privata hjälpmetoder ---
+    // --- Private helpers ---
 
-    // Gemensam logik för att skapa en nyckel med valfri write-behörighet
+    // Shared logic for creating a key with optional write permission
     private AccessKey createKey(String bucketName, String keyName, boolean allowWrite) {
         GarageKeyResponse created = postCreateKey(keyName);
         String bucketId = getBucketId(bucketName);
@@ -120,7 +119,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         return new AccessKey(created.accessKeyId(), created.secretAccessKey(), bucketName, permission, garageEndpoint, garageRegion, pgUsername);
     }
 
-    // Parsear un item de ListKeys: extrae pgUsername del nombre si está embebido
+    // Parses a ListKeys item, extracting pgUsername from the key name if embedded
     private AccessKey parseKeyItem(GarageKeyListItem item) {
         String name = item.name() != null ? item.name() : "";
         String pgUsername = null;
@@ -132,7 +131,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         return new AccessKey(item.id(), null, name, null, garageEndpoint, garageRegion, pgUsername);
     }
 
-    // Steg 1: POST /v2/CreateKey – skapar nyckeln och returnerar accessKeyId + secretAccessKey
+    // Step 1: POST /v2/CreateKey – creates the key and returns accessKeyId + secretAccessKey
     private GarageKeyResponse postCreateKey(String keyName) {
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(
             Map.of("name", keyName),
@@ -143,7 +142,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         return created;
     }
 
-    // Steg 2: GET /v2/GetBucketInfo?globalAlias={bucketName} – hämtar bucket-ID
+    // Step 2: GET /v2/GetBucketInfo?globalAlias={bucketName} – resolves the bucket ID
     private String getBucketId(String bucketName) {
         ResponseEntity<GarageBucketResponse> response = restTemplate.exchange(
             adminApiUrl + "/v2/GetBucketInfo?globalAlias=" + bucketName,
@@ -156,7 +155,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         return bucket.id();
     }
 
-    // Steg 3: POST /v2/AllowBucketKey – kopplar nyckeln till bucketen med behörigheter
+    // Step 3: POST /v2/AllowBucketKey – grants the key access to the bucket with the given permissions
     private void grantBucketPermission(String bucketId, String accessKeyId, boolean allowWrite) {
         Map<String, Object> body = Map.of(
             "bucketId", bucketId,
@@ -174,8 +173,8 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         );
     }
 
-    // Skapar HTTP-headers för Admin API-anrop.
-    // Bearer-token inkluderas bara om GARAGE_ADMIN_TOKEN är konfigurerat.
+    // Builds HTTP headers for Admin API calls.
+    // Bearer token is only added if GARAGE_ADMIN_TOKEN is configured.
     private HttpHeaders authHeaders() {
         HttpHeaders headers = new HttpHeaders();
         if (adminToken != null && !adminToken.isBlank()) {
