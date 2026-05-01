@@ -74,14 +74,13 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
 
     /**
      * Tar bort en nyckel permanent.
-     * Anrop: DELETE /v2/DeleteKey?id={keyId}
+     * Anrop: POST /v2/DeleteKey  (Garage Admin API v2 uses POST for all operations)
      */
     @Override
     public void deleteKey(String keyId) {
-        restTemplate.exchange(
-            adminApiUrl + "/v2/DeleteKey?id=" + keyId,
-            HttpMethod.DELETE,
-            new HttpEntity<>(authHeaders()),
+        restTemplate.postForObject(
+            adminApiUrl + "/v2/DeleteKey",
+            new HttpEntity<>(Map.of("accessKeyId", keyId), authHeaders()),
             Void.class
         );
     }
