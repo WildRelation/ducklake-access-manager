@@ -345,13 +345,13 @@ function App() {
       const map = getKeyMap();
       setKeys(data.map(k => {
         const entry = map[k.keyId];
-        const pg   = entry && typeof entry === 'object' ? entry.pg   : (entry || null);
-        const perm = entry && typeof entry === 'object' ? entry.perm : null;
+        const localPg   = entry && typeof entry === 'object' ? entry.pg   : (entry || null);
+        const localPerm = entry && typeof entry === 'object' ? entry.perm : null;
         return {
           keyId:      k.keyId,
           keyName:    k.bucketName || '—',
-          pgUser:     pg,
-          permission: perm || k.permission || 'read',
+          pgUser:     k.pgUsername || localPg,
+          permission: k.permission || localPerm || 'read',
         };
       }));
     } catch (e) {
@@ -422,8 +422,10 @@ function App() {
 
     setDeletingId(keyId);
     try {
-      const pgParam = pgUser || 'unknown';
-      const res = await fetch(`/api/keys/${keyId}?pgUsername=${encodeURIComponent(pgParam)}`, { method: 'DELETE' });
+      const url = pgUser
+        ? `/api/keys/${keyId}?pgUsername=${encodeURIComponent(pgUser)}`
+        : `/api/keys/${keyId}`;
+      const res = await fetch(url, { method: 'DELETE' });
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
       removeKeyMapping(keyId);
       await loadKeys();

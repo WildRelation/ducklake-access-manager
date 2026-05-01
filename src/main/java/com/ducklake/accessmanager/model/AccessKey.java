@@ -6,5 +6,6 @@ public record AccessKey(
     String bucketName,
     String permission,
     String endpoint,
-    String region
+    String region,
+    String pgUsername
 ) {}

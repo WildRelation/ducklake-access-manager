@@ -72,14 +72,19 @@ public class KeyController {
             return ResponseEntity.badRequest().build();
         }
         // TODO: kontrollera användarroll innan "readwrite" tillåts
-        AccessKey s3Key = switch (request.permission()) {
-            case "readwrite" -> objectStore.createReadWriteKey(request.bucketName(), "key-" + request.bucketName());
-            default -> objectStore.createReadOnlyKey(request.bucketName(), "key-" + request.bucketName());
-        };
 
+        // Create PG user first so its username can be embedded in the Garage key name.
+        // This allows the server to correlate keys and PG users when listing, without
+        // relying on client-side storage.
         DbCredentials dbCreds = switch (request.permission()) {
             case "readwrite" -> database.createReadWriteUser();
             default -> database.createReadOnlyUser();
+        };
+
+        String keyName = "key-" + request.bucketName() + "|" + dbCreds.username();
+        AccessKey s3Key = switch (request.permission()) {
+            case "readwrite" -> objectStore.createReadWriteKey(request.bucketName(), keyName);
+            default -> objectStore.createReadOnlyKey(request.bucketName(), keyName);
         };
 
         String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
@@ -101,9 +106,11 @@ public class KeyController {
      * @param pgUsername PostgreSQL-användaren som ska tas bort samtidigt
      */
     @DeleteMapping("/{keyId}")
-    public ResponseEntity<Void> delete(@PathVariable String keyId, @RequestParam String pgUsername) {
+    public ResponseEntity<Void> delete(@PathVariable String keyId, @RequestParam(required = false) String pgUsername) {
         objectStore.deleteKey(keyId);
-        database.deleteUser(pgUsername);
+        if (pgUsername != null && !pgUsername.isBlank()) {
+            database.deleteUser(pgUsername);
+        }
         return ResponseEntity.noContent().build();
     }
 

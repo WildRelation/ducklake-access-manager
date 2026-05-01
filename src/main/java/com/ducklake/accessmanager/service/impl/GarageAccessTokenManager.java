@@ -103,7 +103,7 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         GarageKeyListItem[] body = response.getBody();
         if (body == null) return List.of();
         return Arrays.stream(body)
-            .map(item -> new AccessKey(item.id(), null, item.name(), null, garageEndpoint, garageRegion))
+            .map(this::parseKeyItem)
             .toList();
     }
 
@@ -115,8 +115,22 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         String bucketId = getBucketId(bucketName);
         grantBucketPermission(bucketId, created.accessKeyId(), allowWrite);
 
+        // Extract pgUsername from key name format "key-{bucket}|{pgUsername}"
+        String pgUsername = keyName.contains("|") ? keyName.split("\\|", 2)[1] : null;
         String permission = allowWrite ? "readwrite" : "read";
-        return new AccessKey(created.accessKeyId(), created.secretAccessKey(), bucketName, permission, garageEndpoint, garageRegion);
+        return new AccessKey(created.accessKeyId(), created.secretAccessKey(), bucketName, permission, garageEndpoint, garageRegion, pgUsername);
+    }
+
+    // Parsear un item de ListKeys: extrae pgUsername del nombre si está embebido
+    private AccessKey parseKeyItem(GarageKeyListItem item) {
+        String name = item.name() != null ? item.name() : "";
+        String pgUsername = null;
+        if (name.contains("|")) {
+            String[] parts = name.split("\\|", 2);
+            name = parts[0];
+            pgUsername = parts[1];
+        }
+        return new AccessKey(item.id(), null, name, null, garageEndpoint, garageRegion, pgUsername);
     }
 
     // Steg 1: POST /v2/CreateKey – skapar nyckeln och returnerar accessKeyId + secretAccessKey
