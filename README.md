@@ -154,7 +154,8 @@ När en användare begär en nyckel sker tre saker automatiskt:
     "bucketName": "ducklake",
     "permission": "read",
     "endpoint": "ducklake-garage:3900",
-    "region": "garage"
+    "region": "garage",
+    "pgUsername": "dl_ro_7df3023f"
   },
   "dbCredentials": {
     "username": "dl_ro_7df3023f",
@@ -191,7 +192,7 @@ Se [`garage-cbhcloud-quickstart`](https://github.com/WildRelation/garage-cbhclou
 
 - Välj bucket och behörighet (read / readwrite)
 - Klicka **Generera nyckel**
-- Kopiera DuckDB-scriptet från modalen
+- Kopiera DuckDB-scriptet från modalen, eller `.env`-blocket för Python/Java/Jupyter
 
 ### REST API
 
@@ -212,6 +213,7 @@ GET /api/keys
 ```
 DELETE /api/keys/{keyId}?pgUsername=dl_ro_xxxxxxxx
 ```
+`pgUsername` är valfri — om den utelämnas tas bara Garage-nyckeln bort. PostgreSQL-användaren tas bort automatiskt om `pgUsername` är känt (det är inbäddat i nyckelnamnet sedan nyckeln skapades).
 
 **Hälsokontroll**
 ```
@@ -296,16 +298,17 @@ docker push ghcr.io/wildrelation/ducklake-access-manager:latest
 | Variabel | Värde |
 |---|---|
 | `POSTGRES_HOST` | `ducklake-catalog` |
-| `POSTGRES_PORT` | `5432` |
 | `POSTGRES_DB` | `ducklake` |
 | `POSTGRES_ADMIN_USER` | `ducklake` |
 | `POSTGRES_ADMIN_PASSWORD` | `cbhcloud` |
+| `POSTGRES_PUBLIC_HOST` | publikt hostname för PostgreSQL i det genererade DuckDB-scriptet (valfri, standard: `POSTGRES_HOST`) |
 | `GARAGE_ADMIN_URL` | `http://ducklake-garage:3900` |
 | `GARAGE_ADMIN_TOKEN` | token från `/tmp/garage.toml` i ducklake-garage |
 | `GARAGE_S3_ENDPOINT` | `ducklake-garage:3900` |
 | `GARAGE_S3_REGION` | `garage` |
 | `PORT` | `8080` |
 
+> `POSTGRES_PORT` är hårdkodad till `5432` i koden — sätt den inte som miljövariabel (Kubernetes injicerar `POSTGRES_PORT=tcp://...` för services med samma namn, vilket korrumperar värdet).
 > `GARAGE_ADMIN_URL` pekar på port **3900** (nginx), inte 3903.
 > `GARAGE_S3_ENDPOINT` ska vara `host:port` utan protokoll — DuckDB lägger till http/https baserat på `USE_SSL`.
 > `GARAGE_S3_REGION` måste matcha `s3_region` i `garage.toml` (standard: `garage`).
