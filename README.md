@@ -54,7 +54,9 @@ Hostname `ducklake-catalog` är bara nåbar inom cbhcloud-clustret.
 
 ## Student deployment guide
 
-Så här skapar du ett eget Python/Jupyter-deployment på cbhcloud där du kan köra DuckDB-scriptet.
+För att ansluta till DuckLake måste koden köras **inifrån cbhcloud-clustret** — `ducklake-catalog` och `ducklake-garage` är interna Kubernetes-services som inte är nåbara utifrån (t.ex. från en lokal dator eller Google Colab).
+
+Det enklaste sättet är att skapa ett eget deployment på cbhcloud med valfri Python-miljö — JupyterLab, VS Code Server, eller ett vanligt Python-skript. Nedan visas JupyterLab som exempel.
 
 ### 1. Skapa ett nytt deployment på cbhcloud
 
