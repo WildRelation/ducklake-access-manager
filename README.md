@@ -397,3 +397,4 @@ CREATE OR REPLACE SECRET garage_secret (
 ## Återstående arbete
 
 - **Autentisering (Fas 4)** — KTH Login (OIDC) via Spring Security så att `readwrite` kräver privilegierad användare
+- **Java-tutorial** — lägg till ett avsnitt i Student deployment guide som visar hur man ansluter till DuckLake från ett Java-deployment på cbhcloud (AWS SDK v2 för S3, JDBC för PostgreSQL)
