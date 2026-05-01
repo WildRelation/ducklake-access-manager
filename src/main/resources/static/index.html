@@ -423,8 +423,8 @@ function App() {
       const envBlock = [
         `AWS_ACCESS_KEY_ID=${data.s3Key.keyId}`,
         `AWS_SECRET_ACCESS_KEY=${data.s3Key.secretKey}`,
-        `S3_ENDPOINT=${data.s3Key.endpoint}`,
-        `S3_REGION=${data.s3Key.region}`,
+        `AWS_ENDPOINT_URL=${data.s3Key.endpoint}`,
+        `AWS_DEFAULT_REGION=${data.s3Key.region}`,
         `S3_BUCKET=${data.s3Key.bucketName}`,
         ``,
         `PGHOST=${data.dbCredentials.host}`,
