@@ -229,9 +229,12 @@ Se [`garage-cbhcloud-quickstart`](https://github.com/WildRelation/garage-cbhclou
 
 ### REST API
 
+Alla endpoints kräver `Authorization: Bearer <token>`.
+
 **Generera nyckel**
 ```
 POST /api/keys/generate
+Authorization: Bearer <token>
 Content-Type: application/json
 
 {"bucketName": "ducklake", "permission": "read"}
@@ -240,11 +243,13 @@ Content-Type: application/json
 **Lista nycklar**
 ```
 GET /api/keys
+Authorization: Bearer <token>
 ```
 
 **Ta bort nyckel**
 ```
 DELETE /api/keys/{keyId}?pgUsername=dl_ro_xxxxxxxx
+Authorization: Bearer <token>
 ```
 `pgUsername` är valfri — om den utelämnas tas bara Garage-nyckeln bort. PostgreSQL-användaren tas bort automatiskt om `pgUsername` är känt (det är inbäddat i nyckelnamnet sedan nyckeln skapades).
 
@@ -285,6 +290,8 @@ src/main/java/com/ducklake/accessmanager/
 ├── api/
 │   ├── KeyController.java                   # REST-endpoints
 │   └── HealthController.java                # /healthz
+├── config/
+│   └── SecurityConfig.java                  # OAuth2 JWT-validering + endpoint-skydd
 └── model/
     ├── AccessKey.java
     ├── DbCredentials.java
@@ -339,6 +346,7 @@ docker push ghcr.io/wildrelation/ducklake-access-manager:latest
 | `GARAGE_ADMIN_TOKEN` | token från `/tmp/garage.toml` i ducklake-garage |
 | `GARAGE_S3_ENDPOINT` | `ducklake-garage:3900` |
 | `GARAGE_S3_REGION` | `garage` |
+| `KEYCLOAK_ISSUER_URI` | `https://iam.cloud.cbh.kth.se/realms/cloud` (valfri, detta är standard) |
 | `PORT` | `8080` |
 
 > `POSTGRES_PORT` är hårdkodad till `5432` i koden — sätt den inte som miljövariabel (Kubernetes injicerar `POSTGRES_PORT=tcp://...` för services med samma namn, vilket korrumperar värdet).
@@ -348,11 +356,44 @@ docker push ghcr.io/wildrelation/ducklake-access-manager:latest
 
 ---
 
+## Autentisering
+
+Alla `/api/keys`-endpoints kräver ett giltigt JWT-token i `Authorization`-headern:
+
+```
+Authorization: Bearer <token>
+```
+
+Tokens valideras mot cbhclouds Keycloak-instans (`https://iam.cloud.cbh.kth.se/realms/cloud`). Realm och issuer-URI är konfigurerbara via `KEYCLOAK_ISSUER_URI`.
+
+### Inloggningsflöde
+
+Frontenden använder **OAuth2 Authorization Code Flow med PKCE** (public client, inget client secret):
+
+1. Användaren klickar **Sign in with KTH**
+2. Webbläsaren dirigeras till Keycloak med en PKCE code challenge
+3. Efter inloggning skickas en `code` tillbaka till frontenden
+4. Frontenden byter ut `code` mot ett access token via Keycloaks token-endpoint
+5. Tokenet lagras i `sessionStorage` och skickas med alla API-anrop
+
+**Keycloak-klient:**
+- Realm: `cloud`
+- Client ID: `ducklake`
+- Public client (inget client_secret)
+- Redirect URI: `https://ducklake-access-manager.app.cloud.cbh.kth.se/`
+
+### Vad som återstår
+
+Inloggning krävs nu för alla endpoints, men rollstyrning är inte implementerat ännu — alla inloggade användare kan skapa `readwrite`-nycklar och ta bort andras nycklar. Det löses i nästa steg (se [Återstående arbete](#återstående-arbete)).
+
+---
+
 ## Teknisk stack
 
 | Del | Teknologi |
 |---|---|
 | Backend | Java 17 + Spring Boot 3.2.5 |
+| Autentisering | Spring Security + OAuth2 Resource Server (JWT/JWKS) |
 | PostgreSQL | JdbcTemplate (DDL direkt) |
 | Garage | REST mot Admin API v2 |
 | Frontend | Vanilla HTML/CSS/JS (ingen byggprocess) |
@@ -410,5 +451,5 @@ CREATE OR REPLACE SECRET garage_secret (
 
 ## Återstående arbete
 
-- **Autentisering (Fas 4)** — KTH Login (OIDC) via Spring Security så att `readwrite` kräver privilegierad användare
+- **Rollstyrning** — alla inloggade användare kan skapa `readwrite`-nycklar och ta bort andras nycklar. Nästa steg: läs ut användarroll från JWT-token och begränsa `readwrite` till privilegierade användare; lägg till mappningstabell i PostgreSQL för att koppla nycklar till användare
 - **Java-tutorial** — lägg till ett avsnitt i Student deployment guide som visar hur man ansluter till DuckLake från ett Java-deployment på cbhcloud (AWS SDK v2 för S3, JDBC för PostgreSQL)
