@@ -292,6 +292,10 @@ src/main/java/com/ducklake/accessmanager/
 │   └── HealthController.java                # /healthz
 ├── config/
 │   └── SecurityConfig.java                  # OAuth2 JWT-validering + endpoint-skydd
+├── service/
+│   ├── KeyMappingService.java               # Interface för ägarskapsregistret
+│   └── impl/
+│       └── PostgresKeyMappingService.java   # key_user_mapping-tabell i PostgreSQL
 └── model/
     ├── AccessKey.java
     ├── DbCredentials.java
@@ -382,9 +386,24 @@ Frontenden använder **OAuth2 Authorization Code Flow med PKCE** (public client,
 - Public client (inget client_secret)
 - Redirect URI: `https://ducklake-access-manager.app.cloud.cbh.kth.se/`
 
-### Vad som återstår
+### Åtkomstregler
 
-Inloggning krävs nu för alla endpoints, men rollstyrning är inte implementerat ännu — alla inloggade användare kan skapa `readwrite`-nycklar och ta bort andras nycklar. Det löses i nästa steg (se [Återstående arbete](#återstående-arbete)).
+| Endpoint | Vanlig användare | Admin |
+|---|---|---|
+| `POST /api/keys/generate` (read) | ✅ | ✅ |
+| `POST /api/keys/generate` (readwrite) | ❌ 403 | ✅ |
+| `GET /api/keys` | Bara egna nycklar | Alla nycklar |
+| `DELETE /api/keys/{keyId}` | Bara egna nycklar | Alla nycklar |
+
+### Admin-roll
+
+Admin avgörs av Keycloak-JWT-claimet `realm_access.roles` — om listan innehåller `"admin"` behandlas användaren som admin. Rollen tilldelas i cbhclouds Keycloak-konsol.
+
+### Ägarskapsregistret
+
+Vid generering sparas `(garage_key_id, keycloak_user)` i tabellen `key_user_mapping` i PostgreSQL. Tabellen skapas automatiskt om den inte finns. Den används för:
+- Filtrera `GET /api/keys` per användare
+- Kontrollera ägarskap vid `DELETE`
 
 ---
 
@@ -451,5 +470,4 @@ CREATE OR REPLACE SECRET garage_secret (
 
 ## Återstående arbete
 
-- **Rollstyrning** — alla inloggade användare kan skapa `readwrite`-nycklar och ta bort andras nycklar. Nästa steg: läs ut användarroll från JWT-token och begränsa `readwrite` till privilegierade användare; lägg till mappningstabell i PostgreSQL för att koppla nycklar till användare
 - **Java-tutorial** — lägg till ett avsnitt i Student deployment guide som visar hur man ansluter till DuckLake från ett Java-deployment på cbhcloud (AWS SDK v2 för S3, JDBC för PostgreSQL)

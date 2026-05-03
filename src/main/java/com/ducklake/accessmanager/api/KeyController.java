@@ -5,9 +5,12 @@ import com.ducklake.accessmanager.model.DbCredentials;
 import com.ducklake.accessmanager.model.GeneratedCredentials;
 import com.ducklake.accessmanager.model.KeyRequest;
 import com.ducklake.accessmanager.service.DatabaseAccessTokenManager;
+import com.ducklake.accessmanager.service.KeyMappingService;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,23 +21,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST controller for key management.
  *
- * Exposes three endpoints:
+ * All endpoints require a valid JWT (enforced by SecurityConfig).
+ * The JWT identifies the caller and is used to enforce access rules:
  *
- *   POST   /api/keys/generate  – Generate new keys (Garage + PostgreSQL) and return a DuckDB script
- *   GET    /api/keys           – List all existing keys
- *   DELETE /api/keys/{keyId}   – Delete a key from both Garage and PostgreSQL
+ *   POST   /api/keys/generate  – any authenticated user; readwrite restricted to admins
+ *   GET    /api/keys           – admins see all keys; users see only their own
+ *   DELETE /api/keys/{keyId}   – admins can delete any key; users can only delete their own
  *
- * The controller delegates all logic to {@link ObjectStoreAccessTokenManager}
- * and {@link DatabaseAccessTokenManager}, keeping itself free from
- * implementation details about Garage or PostgreSQL.
- *
- * TODO before this controller is production-ready:
- *   - Add authentication (who is the caller?)
- *   - Verify that unprivileged users cannot request "readwrite"
+ * Admin role is determined by "admin" in the Keycloak realm_access.roles JWT claim.
  */
 @RestController
 @RequestMapping("/api/keys")
@@ -42,39 +41,42 @@ public class KeyController {
 
     private final ObjectStoreAccessTokenManager objectStore;
     private final DatabaseAccessTokenManager database;
+    private final KeyMappingService keyMapping;
     private final String postgresPublicHost;
 
     public KeyController(
         ObjectStoreAccessTokenManager objectStore,
         DatabaseAccessTokenManager database,
+        KeyMappingService keyMapping,
         @Value("${ducklake.postgres.public-host}") String postgresPublicHost
     ) {
         this.objectStore = objectStore;
         this.database = database;
+        this.keyMapping = keyMapping;
         this.postgresPublicHost = postgresPublicHost;
     }
 
     /**
      * Generates a key pair (S3 + PostgreSQL) and returns a ready-to-use DuckDB script.
      *
-     * TODO: this endpoint is unauthenticated — anyone can generate credentials, and "readwrite"
-     * is not restricted to privileged users. This will be fixed when authentication is implemented.
-     *
-     * Request body:
-     *   - bucketName: the Garage bucket to grant access to
-     *   - permission: "read" (default) or "readwrite" (requires privileged user)
-     *
-     * Response contains:
-     *   - s3Key:         keyId, secretKey, endpoint for Garage
-     *   - dbCredentials: username, password, host for PostgreSQL
-     *   - duckdbScript:  ready-to-run SQL script for DuckDB
+     * readwrite permission requires admin role — returns 403 otherwise.
+     * The caller's Keycloak username is saved in key_user_mapping for ownership tracking.
      */
     @PostMapping("/generate")
-    public ResponseEntity<GeneratedCredentials> generate(@RequestBody KeyRequest request) {
+    public ResponseEntity<GeneratedCredentials> generate(
+        @RequestBody KeyRequest request,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
         if (request.bucketName() == null || !request.bucketName().matches("[a-z0-9][a-z0-9\\-]{1,61}[a-z0-9]")) {
             return ResponseEntity.badRequest().build();
         }
-        // TODO: kontrollera användarroll innan "readwrite" tillåts
+
+        String keycloakUser = jwt.getClaimAsString("preferred_username");
+        boolean admin = isAdmin(jwt);
+
+        if ("readwrite".equals(request.permission()) && !admin) {
+            return ResponseEntity.status(403).build();
+        }
 
         // Create PG user first so its username can be embedded in the Garage key name.
         // This allows the server to correlate keys and PG users when listing, without
@@ -90,34 +92,76 @@ public class KeyController {
             default -> objectStore.createReadOnlyKey(request.bucketName(), keyName);
         };
 
+        keyMapping.saveMapping(s3Key.keyId(), keycloakUser);
+
         String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
         return ResponseEntity.ok(new GeneratedCredentials(s3Key, dbCreds, script));
     }
 
     /**
-     * Returns all keys registered in Garage.
+     * Returns keys visible to the caller.
+     * Admins see all keys. Regular users see only the keys they created.
      */
     @GetMapping
-    public ResponseEntity<List<AccessKey>> list() {
-        return ResponseEntity.ok(objectStore.listKeys());
+    public ResponseEntity<List<AccessKey>> list(@AuthenticationPrincipal Jwt jwt) {
+        String keycloakUser = jwt.getClaimAsString("preferred_username");
+        boolean admin = isAdmin(jwt);
+
+        List<AccessKey> allKeys = objectStore.listKeys();
+
+        if (admin) {
+            return ResponseEntity.ok(allKeys);
+        }
+
+        List<String> ownedIds = keyMapping.findKeyIdsForUser(keycloakUser);
+        List<AccessKey> ownKeys = allKeys.stream()
+            .filter(k -> ownedIds.contains(k.keyId()))
+            .toList();
+
+        return ResponseEntity.ok(ownKeys);
     }
 
     /**
      * Deletes a key from both Garage and PostgreSQL.
      *
-     * TODO: this endpoint is unauthenticated — any user can delete any key, including ones
-     * they did not create. This will be fixed when authentication is implemented.
+     * Admins can delete any key. Regular users receive 403 if they do not own the key.
      *
      * @param keyId      the Garage key ID
      * @param pgUsername the PostgreSQL user to delete alongside the key
      */
     @DeleteMapping("/{keyId}")
-    public ResponseEntity<Void> delete(@PathVariable String keyId, @RequestParam(required = false) String pgUsername) {
+    public ResponseEntity<Void> delete(
+        @PathVariable String keyId,
+        @RequestParam(required = false) String pgUsername,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String keycloakUser = jwt.getClaimAsString("preferred_username");
+        boolean admin = isAdmin(jwt);
+
+        if (!admin) {
+            String owner = keyMapping.findOwner(keyId);
+            if (!keycloakUser.equals(owner)) {
+                return ResponseEntity.status(403).build();
+            }
+        }
+
         objectStore.deleteKey(keyId);
+        keyMapping.deleteMapping(keyId);
+
         if (pgUsername != null && !pgUsername.isBlank()) {
             database.deleteUser(pgUsername);
         }
+
         return ResponseEntity.noContent().build();
+    }
+
+    // Returns true if the JWT contains "admin" in Keycloak's realm_access.roles claim.
+    @SuppressWarnings("unchecked")
+    private boolean isAdmin(Jwt jwt) {
+        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+        if (realmAccess == null) return false;
+        List<String> roles = (List<String>) realmAccess.get("roles");
+        return roles != null && roles.contains("admin");
     }
 
     // Builds a ready-to-run DuckDB script with the generated credentials
