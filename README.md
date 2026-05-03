@@ -397,7 +397,7 @@ Frontenden använder **OAuth2 Authorization Code Flow med PKCE** (public client,
 
 ### Admin-roll
 
-Admin avgörs av Keycloak-JWT-claimet `realm_access.roles` — om listan innehåller `"admin"` behandlas användaren som admin. Rollen tilldelas i cbhclouds Keycloak-konsol.
+Admin avgörs av Keycloak-JWT-claimet `resource_access.ducklake.roles` — om listan innehåller `"admin"` behandlas användaren som admin. Det är en **client role** (inte realm role), vilket ger fin kontroll: admin här betyder admin specifikt för `ducklake`-klienten. Rollen tilldelas i cbhclouds Keycloak-konsol.
 
 ### Ägarskapsregistret
 

@@ -155,12 +155,16 @@ public class KeyController {
         return ResponseEntity.noContent().build();
     }
 
-    // Returns true if the JWT contains "admin" in Keycloak's realm_access.roles claim.
+    // Returns true if the JWT contains "admin" in Keycloak's resource_access.ducklake.roles claim.
+    // Using a client role (not realm role) gives finer-grained control — admin here means
+    // admin specifically for the ducklake client, not a global realm admin.
     @SuppressWarnings("unchecked")
     private boolean isAdmin(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) return false;
-        List<String> roles = (List<String>) realmAccess.get("roles");
+        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
+        if (resourceAccess == null) return false;
+        Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get("ducklake");
+        if (clientAccess == null) return false;
+        List<String> roles = (List<String>) clientAccess.get("roles");
         return roles != null && roles.contains("admin");
     }
 
