@@ -10,7 +10,7 @@ import java.util.List;
  * the key list so regular users only see their own keys.
  */
 public interface KeyMappingService {
-    void saveMapping(String garageKeyId, String keycloakUser);
+    void saveMapping(String garageKeyId, String keycloakSub, String displayName);
     String findOwner(String garageKeyId);
     List<String> findKeyIdsForUser(String keycloakUser);
     void deleteMapping(String garageKeyId);

@@ -16,34 +16,35 @@ public class PostgresKeyMappingService implements KeyMappingService {
         jdbc.execute("""
             CREATE TABLE IF NOT EXISTS key_user_mapping (
                 garage_key_id VARCHAR PRIMARY KEY,
-                keycloak_user VARCHAR NOT NULL,
+                keycloak_sub  VARCHAR NOT NULL,
+                display_name  VARCHAR,
                 created_at    TIMESTAMP DEFAULT NOW()
             )
         """);
     }
 
     @Override
-    public void saveMapping(String garageKeyId, String keycloakUser) {
+    public void saveMapping(String garageKeyId, String keycloakSub, String displayName) {
         jdbc.update(
-            "INSERT INTO key_user_mapping (garage_key_id, keycloak_user) VALUES (?, ?) ON CONFLICT DO NOTHING",
-            garageKeyId, keycloakUser
+            "INSERT INTO key_user_mapping (garage_key_id, keycloak_sub, display_name) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+            garageKeyId, keycloakSub, displayName
         );
     }
 
     @Override
     public String findOwner(String garageKeyId) {
         List<String> rows = jdbc.queryForList(
-            "SELECT keycloak_user FROM key_user_mapping WHERE garage_key_id = ?",
+            "SELECT keycloak_sub FROM key_user_mapping WHERE garage_key_id = ?",
             String.class, garageKeyId
         );
         return rows.isEmpty() ? null : rows.get(0);
     }
 
     @Override
-    public List<String> findKeyIdsForUser(String keycloakUser) {
+    public List<String> findKeyIdsForUser(String keycloakSub) {
         return jdbc.queryForList(
-            "SELECT garage_key_id FROM key_user_mapping WHERE keycloak_user = ?",
-            String.class, keycloakUser
+            "SELECT garage_key_id FROM key_user_mapping WHERE keycloak_sub = ?",
+            String.class, keycloakSub
         );
     }
 

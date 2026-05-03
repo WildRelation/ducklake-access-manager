@@ -71,7 +71,8 @@ public class KeyController {
             return ResponseEntity.badRequest().build();
         }
 
-        String keycloakUser = jwt.getSubject();
+        String keycloakSub = jwt.getSubject();
+        String displayName = jwt.getClaimAsString("preferred_username");
         boolean admin = isAdmin(jwt);
 
         if ("readwrite".equals(request.permission()) && !admin) {
@@ -92,7 +93,7 @@ public class KeyController {
             default -> objectStore.createReadOnlyKey(request.bucketName(), keyName);
         };
 
-        keyMapping.saveMapping(s3Key.keyId(), keycloakUser);
+        keyMapping.saveMapping(s3Key.keyId(), keycloakSub, displayName);
 
         String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
         return ResponseEntity.ok(new GeneratedCredentials(s3Key, dbCreds, script));
@@ -104,7 +105,7 @@ public class KeyController {
      */
     @GetMapping
     public ResponseEntity<List<AccessKey>> list(@AuthenticationPrincipal Jwt jwt) {
-        String keycloakUser = jwt.getSubject();
+        String keycloakSub = jwt.getSubject();
         boolean admin = isAdmin(jwt);
 
         List<AccessKey> allKeys = objectStore.listKeys();
@@ -113,7 +114,7 @@ public class KeyController {
             return ResponseEntity.ok(allKeys);
         }
 
-        List<String> ownedIds = keyMapping.findKeyIdsForUser(keycloakUser);
+        List<String> ownedIds = keyMapping.findKeyIdsForUser(keycloakSub);
         List<AccessKey> ownKeys = allKeys.stream()
             .filter(k -> ownedIds.contains(k.keyId()))
             .toList();
@@ -135,12 +136,12 @@ public class KeyController {
         @RequestParam(required = false) String pgUsername,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        String keycloakUser = jwt.getSubject();
+        String keycloakSub = jwt.getSubject();
         boolean admin = isAdmin(jwt);
 
         if (!admin) {
             String owner = keyMapping.findOwner(keyId);
-            if (!keycloakUser.equals(owner)) {
+            if (!keycloakSub.equals(owner)) {
                 return ResponseEntity.status(403).build();
             }
         }
