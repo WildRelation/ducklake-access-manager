@@ -401,9 +401,12 @@ Admin avgörs av Keycloak-JWT-claimet `resource_access.ducklake.roles` — om li
 
 ### Ägarskapsregistret
 
-Vid generering sparas `(garage_key_id, keycloak_sub)` i tabellen `key_user_mapping` i PostgreSQL. `sub` är Keycloaks interna UUID för användaren — oföränderlig även om e-postadressen ändras. Tabellen skapas automatiskt om den inte finns. Den används för:
+Vid generering sparas `(garage_key_id, keycloak_sub, display_name)` i tabellen `key_user_mapping` i PostgreSQL. `keycloak_sub` är Keycloaks interna UUID för användaren — oföränderlig även om e-postadressen ändras. `display_name` är `preferred_username` från JWT (t.ex. `jpsa2@kth.se`) och används för att visa ett läsbart namn i admin-vyn. Tabellen skapas automatiskt om den inte finns. Den används för:
 - Filtrera `GET /api/keys` per användare
 - Kontrollera ägarskap vid `DELETE`
+- Visa ägare (display_name) i admin-vyn
+
+Admins ser en extra kolumn **Owner** i nyckellistan som visar vem som skapat varje nyckel. Vanliga användare ser bara sina egna nycklar och ingen Owner-kolumn.
 
 ---
 
@@ -457,6 +460,32 @@ CREATE OR REPLACE SECRET garage_secret (
 ```
 
 **Varför fungerar det bara inifrån kthcloud?** `ducklake-garage` är ett internt Kubernetes-servicename som bara löser upp inom cbhcloud-clustret. Scriptet är avsett att köras från ett eget deployment på kthcloud (t.ex. JupyterLab), inte lokalt.
+
+### Schema-fel vid uppgradering: `null value in column "keycloak_user"`
+
+**Symptom:** `ERROR: null value in column "keycloak_user" of relation "key_user_mapping" violates not-null constraint` när en nyckel genereras efter en uppdatering av tjänsten.
+
+**Orsak:** Tabellen `key_user_mapping` skapades i en äldre version med kolumnnamnet `keycloak_user`. Nyare versioner av koden använder `keycloak_sub`. `CREATE TABLE IF NOT EXISTS` lägger inte till nya kolumner i en befintlig tabell — den hoppar över hela satsen om tabellen redan finns.
+
+**Lösning:** Droppa tabellen i produktion så att den återskapas med rätt schema vid nästa uppstart:
+
+```bash
+# SSH in i PostgreSQL-deploymentet
+ssh ducklake-catalog@deploy.cloud.cbh.kth.se
+
+# Anslut till psql
+psql -U ducklake
+
+# Droppa tabellen (data om nyckelägare försvinner, men Garage-nycklarna berörs inte)
+DROP TABLE key_user_mapping;
+\q
+```
+
+Starta sedan om `ducklake-access-manager`-deploymentet. Tabellen återskapas automatiskt med rätt kolumner (`garage_key_id`, `keycloak_sub`, `display_name`, `created_at`).
+
+> **OBS:** Befintliga Garage-nycklar och PostgreSQL-användare påverkas inte — bara ägarskapsdata (vem som skapat vilken nyckel) försvinner. Nycklar som skapas efter omstarten registreras korrekt igen.
+
+---
 
 ### 403 Invalid signature från Garage (nginx Host-header)
 
