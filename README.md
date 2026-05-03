@@ -401,7 +401,7 @@ Admin avgörs av Keycloak-JWT-claimet `resource_access.ducklake.roles` — om li
 
 ### Ägarskapsregistret
 
-Vid generering sparas `(garage_key_id, keycloak_user)` i tabellen `key_user_mapping` i PostgreSQL. Tabellen skapas automatiskt om den inte finns. Den används för:
+Vid generering sparas `(garage_key_id, keycloak_sub)` i tabellen `key_user_mapping` i PostgreSQL. `sub` är Keycloaks interna UUID för användaren — oföränderlig även om e-postadressen ändras. Tabellen skapas automatiskt om den inte finns. Den används för:
 - Filtrera `GET /api/keys` per användare
 - Kontrollera ägarskap vid `DELETE`
 

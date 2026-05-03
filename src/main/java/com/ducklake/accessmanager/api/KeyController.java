@@ -71,7 +71,7 @@ public class KeyController {
             return ResponseEntity.badRequest().build();
         }
 
-        String keycloakUser = jwt.getClaimAsString("preferred_username");
+        String keycloakUser = jwt.getSubject();
         boolean admin = isAdmin(jwt);
 
         if ("readwrite".equals(request.permission()) && !admin) {
@@ -104,7 +104,7 @@ public class KeyController {
      */
     @GetMapping
     public ResponseEntity<List<AccessKey>> list(@AuthenticationPrincipal Jwt jwt) {
-        String keycloakUser = jwt.getClaimAsString("preferred_username");
+        String keycloakUser = jwt.getSubject();
         boolean admin = isAdmin(jwt);
 
         List<AccessKey> allKeys = objectStore.listKeys();
@@ -135,7 +135,7 @@ public class KeyController {
         @RequestParam(required = false) String pgUsername,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        String keycloakUser = jwt.getClaimAsString("preferred_username");
+        String keycloakUser = jwt.getSubject();
         boolean admin = isAdmin(jwt);
 
         if (!admin) {
