@@ -1,6 +1,7 @@
 package com.ducklake.accessmanager.service;
 
 import com.ducklake.accessmanager.model.AccessKey;
+import com.ducklake.accessmanager.model.Bucket;
 import java.util.List;
 
 /**
@@ -53,4 +54,11 @@ public interface ObjectStoreAccessTokenManager {
      * @param bucketName the global alias / bucket name
      */
     void createBucket(String bucketName);
+
+    /**
+     * Lists all buckets in object storage that have at least one global alias.
+     *
+     * @return buckets sorted by name
+     */
+    List<Bucket> listBuckets();
 }

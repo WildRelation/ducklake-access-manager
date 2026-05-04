@@ -4,7 +4,6 @@ import com.ducklake.accessmanager.config.SecurityConfig;
 import com.ducklake.accessmanager.model.Bucket;
 import com.ducklake.accessmanager.model.BucketGrant;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
-import com.ducklake.accessmanager.service.impl.BucketService;
 import com.ducklake.accessmanager.service.impl.GrantService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,28 +14,25 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    private final BucketService buckets;
-    private final GrantService grants;
     private final ObjectStoreAccessTokenManager objectStore;
+    private final GrantService grants;
 
-    public AdminController(BucketService buckets, GrantService grants, ObjectStoreAccessTokenManager objectStore) {
-        this.buckets = buckets;
-        this.grants  = grants;
+    public AdminController(ObjectStoreAccessTokenManager objectStore, GrantService grants) {
         this.objectStore = objectStore;
+        this.grants = grants;
     }
 
-    // ── Buckets ──────────────────────────────────────────────────────────
+    // ── Buckets (sourced from Garage) ─────────────────────────────────────
 
     @GetMapping("/buckets")
     public ResponseEntity<List<Bucket>> listBuckets(@AuthenticationPrincipal Jwt jwt) {
         requireAdmin(jwt);
-        return ResponseEntity.ok(buckets.listAll());
+        return ResponseEntity.ok(objectStore.listBuckets());
     }
 
     @PostMapping("/buckets")
@@ -46,19 +42,11 @@ public class AdminController {
     ) {
         requireAdmin(jwt);
         String name = body.get("name");
+        if (name == null || !name.matches("[a-z0-9][a-z0-9\\-]{1,61}[a-z0-9]")) {
+            return ResponseEntity.badRequest().build();
+        }
         objectStore.createBucket(name);
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(buckets.add(name, body.get("description")));
-    }
-
-    @DeleteMapping("/buckets/{id}")
-    public ResponseEntity<Void> deleteBucket(
-        @PathVariable UUID id,
-        @AuthenticationPrincipal Jwt jwt
-    ) {
-        requireAdmin(jwt);
-        buckets.delete(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(new Bucket(name));
     }
 
     // ── Grants ───────────────────────────────────────────────────────────
@@ -82,8 +70,11 @@ public class AdminController {
     ) {
         requireAdmin(jwt);
         String studentEmail = body.get("studentEmail");
-        if (studentEmail == null || studentEmail.isBlank()) return ResponseEntity.badRequest().build();
-        grants.grant(studentEmail, UUID.fromString(body.get("bucketId")));
+        String bucketName   = body.get("bucketName");
+        if (studentEmail == null || studentEmail.isBlank() || bucketName == null || bucketName.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        grants.grant(studentEmail, bucketName);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -93,7 +84,7 @@ public class AdminController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         requireAdmin(jwt);
-        grants.revoke(body.get("studentEmail"), UUID.fromString(body.get("bucketId")));
+        grants.revoke(body.get("studentEmail"), body.get("bucketName"));
         return ResponseEntity.noContent().build();
     }
 

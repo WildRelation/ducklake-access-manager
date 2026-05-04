@@ -5,6 +5,7 @@ import com.ducklake.accessmanager.infrastructure.garage.GarageKeyListItem;
 import com.ducklake.accessmanager.infrastructure.garage.GarageKeyResponse;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.model.AccessKey;
+import com.ducklake.accessmanager.model.Bucket;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -107,6 +109,27 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
         if (body == null) return List.of();
         return Arrays.stream(body)
             .map(this::parseKeyItem)
+            .toList();
+    }
+
+    /**
+     * Lists all Garage buckets that have a global alias, sorted by name.
+     * Uses GET /v2/ListBuckets. Re-uses the GarageBucketResponse record (id + globalAliases).
+     */
+    @Override
+    public List<Bucket> listBuckets() {
+        ResponseEntity<GarageBucketResponse[]> response = restTemplate.exchange(
+            adminApiUrl + "/v2/ListBuckets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders()),
+            GarageBucketResponse[].class
+        );
+        GarageBucketResponse[] body = response.getBody();
+        if (body == null) return List.of();
+        return Arrays.stream(body)
+            .filter(b -> b.globalAliases() != null && !b.globalAliases().isEmpty())
+            .map(b -> new Bucket(b.globalAliases().get(0)))
+            .sorted(Comparator.comparing(Bucket::name))
             .toList();
     }
 
