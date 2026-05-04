@@ -142,8 +142,8 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     public void deleteBucket(String bucketName) {
         String bucketId = getBucketId(bucketName);
         restTemplate.postForObject(
-            adminApiUrl + "/v2/DeleteBucket",
-            new HttpEntity<>(Map.of("id", bucketId), authHeaders()),
+            adminApiUrl + "/v2/DeleteBucket?id=" + bucketId,
+            new HttpEntity<>(authHeaders()),
             Object.class
         );
         log.info("Garage bucket deleted: {}", bucketName);
