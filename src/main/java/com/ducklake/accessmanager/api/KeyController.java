@@ -1,5 +1,6 @@
 package com.ducklake.accessmanager.api;
 
+import com.ducklake.accessmanager.config.SecurityConfig;
 import com.ducklake.accessmanager.model.AccessKey;
 import com.ducklake.accessmanager.model.DbCredentials;
 import com.ducklake.accessmanager.model.GeneratedCredentials;
@@ -8,6 +9,7 @@ import com.ducklake.accessmanager.model.KeyRequest;
 import com.ducklake.accessmanager.service.DatabaseAccessTokenManager;
 import com.ducklake.accessmanager.service.KeyMappingService;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
+import com.ducklake.accessmanager.service.impl.GrantService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,17 +45,20 @@ public class KeyController {
     private final ObjectStoreAccessTokenManager objectStore;
     private final DatabaseAccessTokenManager database;
     private final KeyMappingService keyMapping;
+    private final GrantService grantService;
     private final String postgresPublicHost;
 
     public KeyController(
         ObjectStoreAccessTokenManager objectStore,
         DatabaseAccessTokenManager database,
         KeyMappingService keyMapping,
+        GrantService grantService,
         @Value("${ducklake.postgres.public-host}") String postgresPublicHost
     ) {
         this.objectStore = objectStore;
         this.database = database;
         this.keyMapping = keyMapping;
+        this.grantService = grantService;
         this.postgresPublicHost = postgresPublicHost;
     }
 
@@ -75,9 +80,13 @@ public class KeyController {
         String keycloakSub = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
         String displayName = email != null ? email : jwt.getClaimAsString("preferred_username");
-        boolean admin = isAdmin(jwt);
+        boolean admin = SecurityConfig.isAdmin(jwt);
 
         if ("readwrite".equals(request.permission()) && !admin) {
+            return ResponseEntity.status(403).build();
+        }
+
+        if (!admin && !grantService.hasGrant(displayName, request.bucketName())) {
             return ResponseEntity.status(403).build();
         }
 
@@ -108,7 +117,7 @@ public class KeyController {
     @GetMapping
     public ResponseEntity<List<KeyListItem>> list(@AuthenticationPrincipal Jwt jwt) {
         String keycloakSub = jwt.getSubject();
-        boolean admin = isAdmin(jwt);
+        boolean admin = SecurityConfig.isAdmin(jwt);
 
         List<AccessKey> allKeys = objectStore.listKeys();
         List<AccessKey> visibleKeys;
@@ -151,7 +160,7 @@ public class KeyController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         String keycloakSub = jwt.getSubject();
-        boolean admin = isAdmin(jwt);
+        boolean admin = SecurityConfig.isAdmin(jwt);
 
         if (!admin) {
             String owner = keyMapping.findOwner(keyId);
@@ -168,19 +177,6 @@ public class KeyController {
         }
 
         return ResponseEntity.noContent().build();
-    }
-
-    // Returns true if the JWT contains "admin" in Keycloak's resource_access.ducklake.roles claim.
-    // Using a client role (not realm role) gives finer-grained control — admin here means
-    // admin specifically for the ducklake client, not a global realm admin.
-    @SuppressWarnings("unchecked")
-    private boolean isAdmin(Jwt jwt) {
-        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
-        if (resourceAccess == null) return false;
-        Map<String, Object> clientAccess = (Map<String, Object>) resourceAccess.get("ducklake");
-        if (clientAccess == null) return false;
-        List<String> roles = (List<String>) clientAccess.get("roles");
-        return roles != null && roles.contains("admin");
     }
 
     // Builds a ready-to-run DuckDB script with the generated credentials
