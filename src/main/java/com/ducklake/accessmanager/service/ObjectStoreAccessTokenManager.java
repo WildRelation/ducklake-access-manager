@@ -45,4 +45,12 @@ public interface ObjectStoreAccessTokenManager {
      * @return list of {@link AccessKey}
      */
     List<AccessKey> listKeys();
+
+    /**
+     * Creates a bucket in object storage with the given global alias.
+     * No-op if the bucket already exists.
+     *
+     * @param bucketName the global alias / bucket name
+     */
+    void createBucket(String bucketName);
 }

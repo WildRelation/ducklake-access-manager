@@ -3,6 +3,7 @@ package com.ducklake.accessmanager.api;
 import com.ducklake.accessmanager.config.SecurityConfig;
 import com.ducklake.accessmanager.model.Bucket;
 import com.ducklake.accessmanager.model.BucketGrant;
+import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.service.impl.BucketService;
 import com.ducklake.accessmanager.service.impl.GrantService;
 import org.springframework.http.HttpStatus;
@@ -22,10 +23,12 @@ public class AdminController {
 
     private final BucketService buckets;
     private final GrantService grants;
+    private final ObjectStoreAccessTokenManager objectStore;
 
-    public AdminController(BucketService buckets, GrantService grants) {
+    public AdminController(BucketService buckets, GrantService grants, ObjectStoreAccessTokenManager objectStore) {
         this.buckets = buckets;
         this.grants  = grants;
+        this.objectStore = objectStore;
     }
 
     // ── Buckets ──────────────────────────────────────────────────────────
@@ -42,8 +45,10 @@ public class AdminController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         requireAdmin(jwt);
+        String name = body.get("name");
+        objectStore.createBucket(name);
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(buckets.add(body.get("name"), body.get("description")));
+            .body(buckets.add(name, body.get("description")));
     }
 
     @DeleteMapping("/buckets/{id}")

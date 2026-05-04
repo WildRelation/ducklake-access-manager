@@ -106,6 +106,26 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
             .toList();
     }
 
+    /**
+     * Creates a bucket in Garage with the given global alias.
+     * Uses POST /v2/CreateBucket. If the bucket already exists Garage returns 400 — we swallow it.
+     */
+    @Override
+    public void createBucket(String bucketName) {
+        try {
+            restTemplate.postForObject(
+                adminApiUrl + "/v2/CreateBucket",
+                new HttpEntity<>(Map.of("globalAlias", bucketName), authHeaders()),
+                Object.class
+            );
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            // 409 or 400 means the bucket already exists — that's fine
+            if (e.getStatusCode().value() != 409 && e.getStatusCode().value() != 400) {
+                throw e;
+            }
+        }
+    }
+
     // --- Private helpers ---
 
     // Shared logic for creating a key with optional write permission
