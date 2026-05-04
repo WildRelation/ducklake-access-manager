@@ -11,6 +11,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -34,6 +36,8 @@ import java.util.Map;
  */
 @Service
 public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
+
+    private static final Logger log = LoggerFactory.getLogger(GarageAccessTokenManager.class);
 
     private final RestTemplate restTemplate;
     private final String adminApiUrl;
@@ -112,15 +116,19 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
      */
     @Override
     public void createBucket(String bucketName) {
+        log.info("Creating Garage bucket: {}", bucketName);
         try {
             restTemplate.postForObject(
                 adminApiUrl + "/v2/CreateBucket",
                 new HttpEntity<>(Map.of("globalAlias", bucketName), authHeaders()),
                 Object.class
             );
+            log.info("Garage bucket created: {}", bucketName);
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            // 409 or 400 means the bucket already exists — that's fine
-            if (e.getStatusCode().value() != 409 && e.getStatusCode().value() != 400) {
+            if (e.getStatusCode().value() == 409 || e.getStatusCode().value() == 400) {
+                log.info("Garage bucket already exists ({}): {}", e.getStatusCode().value(), bucketName);
+            } else {
+                log.error("Failed to create Garage bucket {}: {} {}", bucketName, e.getStatusCode(), e.getResponseBodyAsString());
                 throw e;
             }
         }
