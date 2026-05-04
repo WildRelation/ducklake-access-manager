@@ -223,9 +223,23 @@ Se [`garage-cbhcloud-quickstart`](https://github.com/WildRelation/garage-cbhclou
 
 Öppna `https://ducklake-access-manager.app.cloud.cbh.kth.se/` i webbläsaren.
 
-- Välj bucket och behörighet (read / readwrite)
-- Klicka **Generera nyckel**
-- Kopiera DuckDB-scriptet från modalen, eller `.env`-blocket för Python/Java/Jupyter
+Tre flikar:
+
+| Flik | Vem ser den | Innehåll |
+|---|---|---|
+| **Buckets** | Alla | Buckets man har tillgång till. Klicka Generate Keys för att generera credentials. |
+| **My Keys** | Alla | Egna aktiva nycklar. Admin ser alla nycklar med Created By-kolumn. |
+| **Admin** | Bara admin | Bucket-hantering och grant-hantering. |
+
+**Admin-panel — Buckets:**
+- Lista visar alla buckets som finns i Garage
+- "Create in Garage" skapar en ny bucket direkt i Garage
+- Rödmarkerad papperskorg raderar bucketen permanent från Garage (kräver att bucketen är tom)
+
+**Admin-panel — Grants:**
+- Tilldela en student (via e-post) tillgång till en specifik bucket
+- Sök på e-post för att se en students nuvarande tilldelningar
+- Klicka × på en grant för att återkalla den
 
 ### REST API
 
@@ -234,7 +248,6 @@ Alla endpoints kräver `Authorization: Bearer <token>`.
 **Generera nyckel**
 ```
 POST /api/keys/generate
-Authorization: Bearer <token>
 Content-Type: application/json
 
 {"bucketName": "ducklake", "permission": "read"}
@@ -243,28 +256,61 @@ Content-Type: application/json
 **Lista nycklar**
 ```
 GET /api/keys
-Authorization: Bearer <token>
 ```
-
-Svar: lista av nycklar med `createdBy`-fält (e-post för den som skapade nyckeln):
-```json
-[
-  {
-    "keyId": "GKxxxxxxxxxxxx",
-    "bucketName": "ducklake",
-    "permission": "read",
-    "pgUsername": "dl_ro_7df3023f",
-    "createdBy": "jpsa2@kth.se"
-  }
-]
-```
+Admins ser alla nycklar. Studenter ser bara sina egna.
 
 **Ta bort nyckel**
 ```
 DELETE /api/keys/{keyId}?pgUsername=dl_ro_xxxxxxxx
-Authorization: Bearer <token>
 ```
-`pgUsername` är valfri — om den utelämnas tas bara Garage-nyckeln bort. PostgreSQL-användaren tas bort automatiskt om `pgUsername` är känt (det är inbäddat i nyckelnamnet sedan nyckeln skapades).
+`pgUsername` är valfri — om den utelämnas tas bara Garage-nyckeln bort.
+
+**Lista buckets (aktuell användare)**
+```
+GET /api/buckets
+```
+Admin: alla Garage-buckets. Student: bara tilldelade buckets.
+
+**Admin — lista alla buckets**
+```
+GET /api/admin/buckets
+```
+
+**Admin — skapa bucket i Garage**
+```
+POST /api/admin/buckets
+Content-Type: application/json
+
+{"name": "ducklake-ml"}
+```
+
+**Admin — radera bucket från Garage**
+```
+DELETE /api/admin/buckets/{name}
+```
+Returnerar 409 om bucketen inte är tom.
+
+**Admin — lista grants**
+```
+GET /api/admin/grants
+GET /api/admin/grants?email=student@kth.se
+```
+
+**Admin — tilldela bucket-tillgång**
+```
+POST /api/admin/grants
+Content-Type: application/json
+
+{"studentEmail": "student@kth.se", "bucketName": "ducklake-ml"}
+```
+
+**Admin — återkalla bucket-tillgång**
+```
+DELETE /api/admin/grants
+Content-Type: application/json
+
+{"studentEmail": "student@kth.se", "bucketName": "ducklake-ml"}
+```
 
 **Hälsokontroll**
 ```
@@ -289,37 +335,55 @@ Endast användare med dessa prefix kan tas bort — admin-kontot skyddas.
 
 ```
 src/main/java/com/ducklake/accessmanager/
-├── service/
-│   ├── ObjectStoreAccessTokenManager.java   # Interface för S3-hantering
-│   ├── DatabaseAccessTokenManager.java      # Interface för PostgreSQL-hantering
-│   └── impl/
-│       ├── GarageAccessTokenManager.java    # Garage Admin API v2
-│       └── PostgresAccessTokenManager.java  # JDBC + DDL SQL
-├── infrastructure/
-│   └── garage/
-│       ├── GarageBucketResponse.java        # DTO för GetBucketInfo
-│       ├── GarageKeyListItem.java           # DTO för ListKeys
-│       └── GarageKeyResponse.java           # DTO för CreateKey
 ├── api/
-│   ├── KeyController.java                   # REST-endpoints
+│   ├── AdminController.java                 # /api/admin/** (bucket + grant-hantering, kräver admin)
+│   ├── BucketController.java                # /api/buckets (bucket-lista per användare)
+│   ├── KeyController.java                   # /api/keys (generera, lista, ta bort nycklar)
 │   └── HealthController.java                # /healthz
 ├── config/
-│   └── SecurityConfig.java                  # OAuth2 JWT-validering + endpoint-skydd
+│   └── SecurityConfig.java                  # OAuth2 JWT-validering, isAdmin(), endpoint-skydd
 ├── service/
-│   ├── KeyMappingService.java               # Interface för ägarskapsregistret
+│   ├── ObjectStoreAccessTokenManager.java   # Interface: listBuckets, createBucket, deleteBucket,
+│   │                                        #   createReadOnlyKey, createReadWriteKey, deleteKey, listKeys
+│   ├── DatabaseAccessTokenManager.java      # Interface: createReadOnlyUser, createReadWriteUser, deleteUser
+│   ├── KeyMappingService.java               # Interface: saveMapping, findKeyIdsForUser, findOwner, ...
 │   └── impl/
-│       └── PostgresKeyMappingService.java   # key_user_mapping-tabell i PostgreSQL
+│       ├── GarageAccessTokenManager.java    # Garage Admin API v2 (HTTP mot port 3900)
+│       ├── PostgresAccessTokenManager.java  # JDBC: skapar/tar bort dl_ro_/dl_rw_-användare
+│       ├── PostgresKeyMappingService.java   # key_user_mapping-tabell i PostgreSQL
+│       └── GrantService.java                # student_grants-tabell: grant/revoke/hasGrant per email+bucket
+├── infrastructure/
+│   └── garage/
+│       ├── GarageBucketResponse.java        # DTO för GetBucketInfo + ListBuckets
+│       ├── GarageKeyListItem.java           # DTO för ListKeys
+│       └── GarageKeyResponse.java           # DTO för CreateKey
 └── model/
     ├── AccessKey.java
+    ├── Bucket.java
+    ├── BucketGrant.java
     ├── DbCredentials.java
     ├── GeneratedCredentials.java
     ├── KeyListItem.java
     └── KeyRequest.java
 
 src/main/resources/
-├── static/index.html                        # Webb-UI
+├── static/index.html                        # Webb-UI (React + Babel standalone, ingen byggprocess)
 └── application.properties
 ```
+
+### Databasschema (PostgreSQL)
+
+Tabellerna skapas automatiskt vid uppstart via `CREATE TABLE IF NOT EXISTS`.
+
+```sql
+-- Ägarskapsregister: kopplar Garage-nyckel-ID till Keycloak-användare
+key_user_mapping (garage_key_id, keycloak_sub, display_name, created_at)
+
+-- Bucket-tilldelningar: vilken student har tillgång till vilken bucket
+student_grants (student_email, bucket_name, granted_at)
+```
+
+Bucket-listan hämtas direkt från Garage via `GET /v2/ListBuckets` — det finns ingen separat bucket-tabell i PostgreSQL.
 
 ---
 
@@ -347,9 +411,13 @@ mvn spring-boot:run
 ## Driftsättning på cbhcloud
 
 ```bash
-docker build -t ghcr.io/wildrelation/ducklake-access-manager:latest .
-docker push ghcr.io/wildrelation/ducklake-access-manager:latest
+# Använd alltid en ny versionstagg — överskrivning av befintlig tag
+# triggar INTE ny pull om noden har den cachad (imagePullPolicy: IfNotPresent)
+docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v6 .
+docker push ghcr.io/wildrelation/ducklake-access-manager:v6
 ```
+
+Uppdatera sedan image-taggen i cbhcloud-deploymentet till den nya versionen.
 
 **Miljövariabler:**
 
@@ -402,12 +470,18 @@ Frontenden använder **OAuth2 Authorization Code Flow med PKCE** (public client,
 
 ### Åtkomstregler
 
-| Endpoint | Vanlig användare | Admin |
+| Endpoint | Student | Admin |
 |---|---|---|
-| `POST /api/keys/generate` (read) | ✅ | ✅ |
+| `GET /api/buckets` | Bara tilldelade buckets | Alla Garage-buckets |
+| `POST /api/keys/generate` (read) | ✅ (kräver grant) | ✅ |
 | `POST /api/keys/generate` (readwrite) | ❌ 403 | ✅ |
 | `GET /api/keys` | Bara egna nycklar | Alla nycklar |
 | `DELETE /api/keys/{keyId}` | Bara egna nycklar | Alla nycklar |
+| `GET /api/admin/**` | ❌ 403 | ✅ |
+| `POST /api/admin/**` | ❌ 403 | ✅ |
+| `DELETE /api/admin/**` | ❌ 403 | ✅ |
+
+En student kan bara generera nycklar till en bucket om hen har fått en grant via admin-panelen. Utan grant returneras 403 även för read-behörighet.
 
 ### Admin-roll
 
