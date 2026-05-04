@@ -511,6 +511,31 @@ Starta sedan om `ducklake-access-manager`-deploymentet. Tabellen återskapas aut
 
 ---
 
+### NoSuchBucket vid nyckelgenerering — bucket finns i katalogen men inte i Garage
+
+**Symptom:** `HTTP 500` vid "Generate Keys". Logg: `NoSuchBucket: Bucket not found: <namn>` från `GetBucketInfo`.
+
+**Orsak (v1–v3):** Bucket-katalogen lagrades i en separat PostgreSQL-tabell (`buckets`). Att lägga till en bucket i admin-panelen skapade bara en rad i databasen — inte bucketen i Garage. `GetBucketInfo?globalAlias=<namn>` returnerade 404 eftersom bucketen inte existerade i Garage.
+
+**Lösning (v4+):** Bucket-listan hämtas direkt från Garage via `GET /v2/ListBuckets`. PostgreSQL-katalogen är borttagen. Alla Garage-buckets syns automatiskt i admin-panelen. Knappen "Create in Garage" i admin-panelen skapar bucketen via `POST /v2/CreateBucket`. Grants lagras i tabellen `student_grants` med bucket-namn (inte UUID FK).
+
+**Manuell fix (om bucketen saknas i Garage):** SSH in i Garage-containern och kör:
+```bash
+garage bucket create <bucket-namn>
+```
+
+---
+
+### Deployment kör gammal kod trots ny image pushad (imagePullPolicy-cache)
+
+**Symptom:** Buggar kvarstår trots att ny image är byggd och pushad. `Creating Garage bucket:`-loggrader (tillagda som debug) syns aldrig. Deployment beter sig som om gammal kod körs.
+
+**Orsak:** Kubernetes standard-`imagePullPolicy` är `IfNotPresent` — om imagen med given tag redan finns cachad på noden dras den inte om, även om en ny version pushats med samma tag. Att pusha `:v3` igen gav inte en ny pull.
+
+**Lösning:** Använd en ny tag för varje release (`:v4`, `:v5` osv.) istället för att överskriva befintlig tag. Alternativt sätt `imagePullPolicy: Always` i deployment-manifestet och kör `kubectl rollout restart deployment/<namn>`.
+
+---
+
 ## Återstående arbete
 
 - **Java-tutorial** — lägg till ett avsnitt i Student deployment guide som visar hur man ansluter till DuckLake från ett Java-deployment på cbhcloud (AWS SDK v2 för S3, JDBC för PostgreSQL)
