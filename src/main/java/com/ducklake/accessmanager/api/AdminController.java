@@ -5,11 +5,14 @@ import com.ducklake.accessmanager.model.Bucket;
 import com.ducklake.accessmanager.model.BucketGrant;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.service.impl.GrantService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -18,6 +21,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminController.class);
 
     private final ObjectStoreAccessTokenManager objectStore;
     private final GrantService grants;
@@ -47,6 +52,24 @@ public class AdminController {
         }
         objectStore.createBucket(name);
         return ResponseEntity.status(HttpStatus.CREATED).body(new Bucket(name));
+    }
+
+    @DeleteMapping("/buckets/{name}")
+    public ResponseEntity<Void> deleteBucket(
+        @PathVariable String name,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        requireAdmin(jwt);
+        try {
+            objectStore.deleteBucket(name);
+        } catch (HttpClientErrorException e) {
+            log.warn("Failed to delete Garage bucket {}: {}", name, e.getStatusCode());
+            if (e.getStatusCode().value() == 409) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Bucket is not empty");
+            }
+            throw e;
+        }
+        return ResponseEntity.noContent().build();
     }
 
     // ── Grants ───────────────────────────────────────────────────────────

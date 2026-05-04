@@ -61,4 +61,12 @@ public interface ObjectStoreAccessTokenManager {
      * @return buckets sorted by name
      */
     List<Bucket> listBuckets();
+
+    /**
+     * Permanently deletes a bucket from object storage by its global alias.
+     * The bucket must be empty before deletion.
+     *
+     * @param bucketName the global alias of the bucket to delete
+     */
+    void deleteBucket(String bucketName);
 }

@@ -134,6 +134,22 @@ public class GarageAccessTokenManager implements ObjectStoreAccessTokenManager {
     }
 
     /**
+     * Deletes a bucket from Garage by its global alias.
+     * Resolves the bucket ID via GetBucketInfo, then calls POST /v2/DeleteBucket.
+     * The bucket must be empty; Garage returns an error otherwise.
+     */
+    @Override
+    public void deleteBucket(String bucketName) {
+        String bucketId = getBucketId(bucketName);
+        restTemplate.postForObject(
+            adminApiUrl + "/v2/DeleteBucket",
+            new HttpEntity<>(Map.of("id", bucketId), authHeaders()),
+            Object.class
+        );
+        log.info("Garage bucket deleted: {}", bucketName);
+    }
+
+    /**
      * Creates a bucket in Garage with the given global alias.
      * Uses POST /v2/CreateBucket. If the bucket already exists Garage returns 400 — we swallow it.
      */

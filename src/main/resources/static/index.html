@@ -389,6 +389,18 @@ function AdminPage({ token }) {
     finally { setAdding(false); }
   };
 
+  const handleDeleteBucket = async (name) => {
+    if (!window.confirm(`Permanently delete bucket "${name}" from Garage? This cannot be undone.`)) return;
+    try {
+      const res = await authFetch(`/api/admin/buckets/${encodeURIComponent(name)}`, { method:'DELETE' });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || `HTTP ${res.status}`);
+      }
+      await loadBuckets();
+    } catch (e) { alert('Error: ' + e.message); }
+  };
+
   const handleGrant = async () => {
     if (!gEmail.trim() || !gBucketName) return;
     setGranting(true);
@@ -434,15 +446,26 @@ function AdminPage({ token }) {
           </div>
 
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
-            <div style={{ padding:'11px 20px', borderBottom:'1px solid var(--border)', background:'rgba(255,255,255,.02)' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 44px', padding:'11px 20px', borderBottom:'1px solid var(--border)', background:'rgba(255,255,255,.02)', gap:12 }}>
               <span style={{ fontSize:11, fontWeight:600, color:'var(--fg3)', letterSpacing:'.08em', textTransform:'uppercase' }}>Name</span>
+              <span />
             </div>
             {bLoading ? <div style={{ padding:32, display:'flex', justifyContent:'center' }}><Spinner /></div>
               : buckets.length === 0 ? <div style={{ padding:'40px 24px', textAlign:'center', color:'var(--fg3)', fontSize:13 }}>No buckets in Garage yet.</div>
               : buckets.map((b, idx) => (
-                <div key={b.name} style={{ padding:'13px 20px', borderBottom: idx<buckets.length-1 ? '1px solid var(--border)' : 'none', background: idx%2===0 ? 'transparent' : 'rgba(255,255,255,.012)', display:'flex', alignItems:'center', gap:8 }}>
-                  <div style={{ color:'var(--accent)' }}><Icon name="bucket" size={14} /></div>
-                  <span style={{ fontFamily:'var(--mono)', fontSize:13, fontWeight:500 }}>{b.name}</span>
+                <div key={b.name} style={{ display:'grid', gridTemplateColumns:'1fr 44px', padding:'13px 20px', borderBottom: idx<buckets.length-1 ? '1px solid var(--border)' : 'none', background: idx%2===0 ? 'transparent' : 'rgba(255,255,255,.012)', gap:12, alignItems:'center' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style={{ color:'var(--accent)' }}><Icon name="bucket" size={14} /></div>
+                    <span style={{ fontFamily:'var(--mono)', fontSize:13, fontWeight:500 }}>{b.name}</span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                    <button onClick={() => handleDeleteBucket(b.name)} title="Delete bucket permanently"
+                      style={{ background:'transparent', border:'1px solid transparent', borderRadius:6, color:'var(--fg3)', cursor:'pointer', width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center' }}
+                      onMouseEnter={e => { e.currentTarget.style.background='var(--red-dim)'; e.currentTarget.style.borderColor='rgba(248,113,113,.25)'; e.currentTarget.style.color='var(--red)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor='transparent'; e.currentTarget.style.color='var(--fg3)'; }}>
+                      <Icon name="trash" size={13} />
+                    </button>
+                  </div>
                 </div>
               ))}
           </div>
