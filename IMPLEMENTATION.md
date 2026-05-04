@@ -148,23 +148,23 @@ SELECT usename FROM pg_user WHERE usename LIKE 'dl_%';
 
 ---
 
-## Fas 3 – Rollhantering i KeyController
+## Fas 3 – Rollhantering i KeyController ✅ Implementerad
 
 **Fil:** `api/KeyController.java`
 
-Lägg till kontroll så att oprivilegierade användare inte kan begära `"readwrite"`.
-
-TODO-kommentaren i `generate()`-metoden markerar var denna kontroll ska läggas in.
-Implementeras när autentisering är på plats (Fas 4).
+Oprivilegierade användare kan inte begära `"readwrite"` — returnerar 403.
+Admin-rollen kontrolleras via JWT-claimet `resource_access.ducklake.roles` (client role, inte realm role).
 
 ---
 
-## Fas 4 – Autentisering
+## Fas 4 – Autentisering ✅ Implementerad
 
-Lägg till Spring Security för att:
-- Identifiera inloggad användare
-- Särskilja privilegierade och oprivilegierade användare
-- Skydda `/api/keys/generate` med `readwrite`-behörighet
+Spring Security med OAuth2 Resource Server (JWT/JWKS mot Keycloak):
+- Alla `/api/keys`-endpoints kräver giltigt JWT
+- `keycloak_sub` (JWT `sub`) används för ägarskapsregistret
+- E-post (`email`-claimet, fallback till `preferred_username`) sparas som `display_name`
+- Admins identifieras via client role `admin` i `resource_access.ducklake.roles`
+- `GET /api/keys` returnerar `createdBy` (e-post) på varje nyckel — synligt i UI:ts "Created By"-kolumn
 
 ---
 

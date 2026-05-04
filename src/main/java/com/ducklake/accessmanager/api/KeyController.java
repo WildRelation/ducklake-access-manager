@@ -3,6 +3,7 @@ package com.ducklake.accessmanager.api;
 import com.ducklake.accessmanager.model.AccessKey;
 import com.ducklake.accessmanager.model.DbCredentials;
 import com.ducklake.accessmanager.model.GeneratedCredentials;
+import com.ducklake.accessmanager.model.KeyListItem;
 import com.ducklake.accessmanager.model.KeyRequest;
 import com.ducklake.accessmanager.service.DatabaseAccessTokenManager;
 import com.ducklake.accessmanager.service.KeyMappingService;
@@ -33,7 +34,7 @@ import java.util.Map;
  *   GET    /api/keys           – admins see all keys; users see only their own
  *   DELETE /api/keys/{keyId}   – admins can delete any key; users can only delete their own
  *
- * Admin role is determined by "admin" in the Keycloak realm_access.roles JWT claim.
+ * Admin role is determined by "admin" in the Keycloak resource_access.ducklake.roles JWT claim.
  */
 @RestController
 @RequestMapping("/api/keys")
@@ -60,7 +61,7 @@ public class KeyController {
      * Generates a key pair (S3 + PostgreSQL) and returns a ready-to-use DuckDB script.
      *
      * readwrite permission requires admin role — returns 403 otherwise.
-     * The caller's Keycloak username is saved in key_user_mapping for ownership tracking.
+     * The caller's email (from JWT email claim, fallback to preferred_username) is saved in key_user_mapping for ownership tracking.
      */
     @PostMapping("/generate")
     public ResponseEntity<GeneratedCredentials> generate(
@@ -72,7 +73,8 @@ public class KeyController {
         }
 
         String keycloakSub = jwt.getSubject();
-        String displayName = jwt.getClaimAsString("preferred_username");
+        String email = jwt.getClaimAsString("email");
+        String displayName = email != null ? email : jwt.getClaimAsString("preferred_username");
         boolean admin = isAdmin(jwt);
 
         if ("readwrite".equals(request.permission()) && !admin) {
@@ -100,26 +102,38 @@ public class KeyController {
     }
 
     /**
-     * Returns keys visible to the caller.
+     * Returns keys visible to the caller, each annotated with the creating user's email.
      * Admins see all keys. Regular users see only the keys they created.
      */
     @GetMapping
-    public ResponseEntity<List<AccessKey>> list(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<List<KeyListItem>> list(@AuthenticationPrincipal Jwt jwt) {
         String keycloakSub = jwt.getSubject();
         boolean admin = isAdmin(jwt);
 
         List<AccessKey> allKeys = objectStore.listKeys();
+        List<AccessKey> visibleKeys;
 
         if (admin) {
-            return ResponseEntity.ok(allKeys);
+            visibleKeys = allKeys;
+        } else {
+            List<String> ownedIds = keyMapping.findKeyIdsForUser(keycloakSub);
+            visibleKeys = allKeys.stream()
+                .filter(k -> ownedIds.contains(k.keyId()))
+                .toList();
         }
 
-        List<String> ownedIds = keyMapping.findKeyIdsForUser(keycloakSub);
-        List<AccessKey> ownKeys = allKeys.stream()
-            .filter(k -> ownedIds.contains(k.keyId()))
+        List<String> keyIds = visibleKeys.stream().map(AccessKey::keyId).toList();
+        Map<String, String> displayNames = keyMapping.findDisplayNames(keyIds);
+
+        List<KeyListItem> result = visibleKeys.stream()
+            .map(k -> new KeyListItem(
+                k.keyId(), k.secretKey(), k.bucketName(), k.permission(),
+                k.endpoint(), k.region(), k.pgUsername(),
+                displayNames.get(k.keyId())
+            ))
             .toList();
 
-        return ResponseEntity.ok(ownKeys);
+        return ResponseEntity.ok(result);
     }
 
     /**

@@ -64,6 +64,16 @@
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .app-header { padding: 0 16px !important; }
+    .app-main { padding: 24px 16px !important; }
+    .generate-grid { grid-template-columns: 1fr !important; }
+    .keys-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .keys-row { min-width: 560px; }
+    .overlay { padding: 0 !important; align-items: flex-end !important; }
+    .modal-inner { border-radius: 14px 14px 0 0 !important; max-height: 92vh !important; }
+  }
 </style>
 </head>
 <body>
@@ -256,7 +266,7 @@ function CredModal({ creds, onClose }) {
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
+      <div className="modal-inner" style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 14, width: '100%', maxWidth: 720,
         maxHeight: '92vh', overflow: 'hidden',
@@ -527,6 +537,7 @@ function App() {
           keyName:    k.bucketName || '—',
           pgUser:     k.pgUsername || localPg,
           permission: k.permission || localPerm || 'read',
+          createdBy:  k.createdBy  || null,
         };
       }));
     } catch (e) {
@@ -642,7 +653,7 @@ function App() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* header */}
-      <header style={{
+      <header className="app-header" style={{
         padding: '0 40px', height: 56,
         display: 'flex', alignItems: 'center', gap: 12,
         borderBottom: '1px solid var(--border)',
@@ -685,7 +696,7 @@ function App() {
         </div>
       </header>
 
-      <main style={{ flex: 1, padding: '40px', maxWidth: 900, width: '100%', margin: '0 auto' }}>
+      <main className="app-main" style={{ flex: 1, padding: '40px', maxWidth: 900, width: '100%', margin: '0 auto' }}>
 
         {/* Generate Key */}
         <section style={{ marginBottom: 40 }}>
@@ -701,7 +712,7 @@ function App() {
           </div>
 
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '28px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px auto', gap: 12, alignItems: 'flex-end' }}>
+            <div className="generate-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 200px auto', gap: 12, alignItems: 'flex-end' }}>
               {/* bucket */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--fg2)', marginBottom: 8 }}>Bucket Name</label>
@@ -813,16 +824,17 @@ function App() {
           </div>
 
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 100px 80px',
+            <div className="keys-table-scroll">
+            <div className="keys-row" style={{
+              display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 1.5fr 100px 80px',
               padding: '11px 20px', borderBottom: '1px solid var(--border)',
               background: 'rgba(255,255,255,.02)', gap: 12,
             }}>
-              {['Key ID', 'Key Name', 'PG Username', 'Permission', ''].map((h, i) => (
+              {['Key ID', 'Key Name', 'PG Username', 'Created By', 'Permission', ''].map((h, i) => (
                 <span key={i} style={{
                   fontSize: 11, fontWeight: 600, color: 'var(--fg3)',
                   letterSpacing: '.08em', textTransform: 'uppercase',
-                  textAlign: i === 4 ? 'right' : 'left',
+                  textAlign: i === 5 ? 'right' : 'left',
                 }}>{h}</span>
               ))}
             </div>
@@ -844,8 +856,8 @@ function App() {
                 No access keys found. Generate one above.
               </div>
             ) : keys.map((key, idx) => (
-              <div key={key.keyId} style={{
-                display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 100px 80px',
+              <div key={key.keyId} className="keys-row" style={{
+                display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 1.5fr 100px 80px',
                 padding: '13px 20px',
                 borderBottom: idx < keys.length - 1 ? '1px solid var(--border)' : 'none',
                 gap: 12, alignItems: 'center',
@@ -869,6 +881,11 @@ function App() {
                   ) : (
                     <span style={{ fontSize: 12, color: 'var(--fg3)', fontStyle: 'italic' }}>unknown</span>
                   )}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 12, color: 'var(--fg2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                    {key.createdBy || <span style={{ color: 'var(--fg3)', fontStyle: 'italic' }}>—</span>}
+                  </span>
                 </div>
                 <div>
                   <span style={{
@@ -916,6 +933,7 @@ function App() {
                 </div>
               </div>
             ))}
+            </div>{/* keys-table-scroll */}
           </div>
 
           {keys.length > 0 && (

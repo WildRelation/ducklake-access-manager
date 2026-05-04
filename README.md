@@ -246,6 +246,19 @@ GET /api/keys
 Authorization: Bearer <token>
 ```
 
+Svar: lista av nycklar med `createdBy`-fält (e-post för den som skapade nyckeln):
+```json
+[
+  {
+    "keyId": "GKxxxxxxxxxxxx",
+    "bucketName": "ducklake",
+    "permission": "read",
+    "pgUsername": "dl_ro_7df3023f",
+    "createdBy": "jpsa2@kth.se"
+  }
+]
+```
+
 **Ta bort nyckel**
 ```
 DELETE /api/keys/{keyId}?pgUsername=dl_ro_xxxxxxxx
@@ -300,6 +313,7 @@ src/main/java/com/ducklake/accessmanager/
     ├── AccessKey.java
     ├── DbCredentials.java
     ├── GeneratedCredentials.java
+    ├── KeyListItem.java
     └── KeyRequest.java
 
 src/main/resources/
@@ -401,12 +415,12 @@ Admin avgörs av Keycloak-JWT-claimet `resource_access.ducklake.roles` — om li
 
 ### Ägarskapsregistret
 
-Vid generering sparas `(garage_key_id, keycloak_sub, display_name)` i tabellen `key_user_mapping` i PostgreSQL. `keycloak_sub` är Keycloaks interna UUID för användaren — oföränderlig även om e-postadressen ändras. `display_name` är `preferred_username` från JWT (t.ex. `jpsa2@kth.se`) och används för att visa ett läsbart namn i admin-vyn. Tabellen skapas automatiskt om den inte finns. Den används för:
+Vid generering sparas `(garage_key_id, keycloak_sub, display_name)` i tabellen `key_user_mapping` i PostgreSQL. `keycloak_sub` är Keycloaks interna UUID för användaren — oföränderlig även om e-postadressen ändras. `display_name` är e-postadressen från JWT (`email`-claimet, med fallback till `preferred_username`) och används för att visa ett läsbart namn i nyckellistan. Tabellen skapas automatiskt om den inte finns. Den används för:
 - Filtrera `GET /api/keys` per användare
 - Kontrollera ägarskap vid `DELETE`
-- Visa ägare (display_name) i admin-vyn
+- Visa skapare (display_name) i nyckellistan
 
-Admins ser en extra kolumn **Owner** i nyckellistan som visar vem som skapat varje nyckel. Vanliga användare ser bara sina egna nycklar och ingen Owner-kolumn.
+Admins ser en extra kolumn **Created By** i nyckellistan som visar vem som skapat varje nyckel. Vanliga användare ser bara sina egna nycklar.
 
 ---
 

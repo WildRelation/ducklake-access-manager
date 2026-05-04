@@ -4,7 +4,10 @@ import com.ducklake.accessmanager.service.KeyMappingService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PostgresKeyMappingService implements KeyMappingService {
@@ -46,6 +49,21 @@ public class PostgresKeyMappingService implements KeyMappingService {
             "SELECT garage_key_id FROM key_user_mapping WHERE keycloak_sub = ?",
             String.class, keycloakSub
         );
+    }
+
+    @Override
+    public Map<String, String> findDisplayNames(List<String> keyIds) {
+        if (keyIds.isEmpty()) return Map.of();
+        String placeholders = String.join(",", Collections.nCopies(keyIds.size(), "?"));
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT garage_key_id, display_name FROM key_user_mapping WHERE garage_key_id IN (" + placeholders + ")",
+            keyIds.toArray()
+        );
+        Map<String, String> result = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            result.put((String) row.get("garage_key_id"), (String) row.get("display_name"));
+        }
+        return result;
     }
 
     @Override
