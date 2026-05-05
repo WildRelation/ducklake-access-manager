@@ -413,8 +413,8 @@ mvn spring-boot:run
 ```bash
 # Använd alltid en ny versionstagg — överskrivning av befintlig tag
 # triggar INTE ny pull om noden har den cachad (imagePullPolicy: IfNotPresent)
-docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v7 .
-docker push ghcr.io/wildrelation/ducklake-access-manager:v7
+docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v9 .
+docker push ghcr.io/wildrelation/ducklake-access-manager:v9
 ```
 
 Uppdatera sedan image-taggen i cbhcloud-deploymentet till den nya versionen.
@@ -619,6 +619,16 @@ garage bucket create <bucket-namn>
 **Orsak (bugg 2 — permission):** Garage `ListKeys` returnerar inte behörighetsnivå per nyckel. `parseKeyItem` returnerade alltid `null` för `permission`, vilket fick UI:t att alltid visa "Read-only".
 
 **Lösning (v7+):** Nyckelnamnsformatet utökades till `key-{bucket}|{pgUsername}|{permission}`. `parseKeyItem` strippar nu `key-`-prefixet och läser permission ur det tredje fältet. Gamla nycklar utan permission-fält hanteras bakåtkompatibelt (visas som null/"Read-only").
+
+---
+
+### Created-kolumnen i My Keys alltid tom (v8 och tidigare)
+
+**Symptom:** Kolumnen **Created** i My Keys är alltid tom.
+
+**Orsak:** `KeyListItem` saknade ett `createdAt`-fält. UI:t refererade till `k.createdAt` men fältet returnerades aldrig från API:et, trots att `created_at` finns lagrad i `key_user_mapping`-tabellen.
+
+**Lösning (v9+):** `KeyMappingService` fick en ny metod `findCreatedAts()` som hämtar `created_at` per nyckel. `KeyController` inkluderar nu `createdAt` i svaret.
 
 ---
 
