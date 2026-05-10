@@ -82,7 +82,9 @@ När en student genererar nycklar skapas automatiskt:
 
 1. Logga in på `https://ducklake-access-manager.app.cloud.cbh.kth.se/`
 2. Bläddra bland datasets i **Browse** — publika och tilldelade private datasets syns
-3. Klicka **Generate Keys** på ett dataset → kopiera DuckDB-scriptet (secret visas bara en gång)
+3. Klicka **Generate Keys** på ett dataset — en modal visas med credentials som bara visas en gång:
+   - **DuckDB-script** — klistra in direkt i DuckDB/JupyterLab
+   - **Download .env** — laddar ned en `.env.<bucket>-fil` med standardiserade miljövariabelnamn
 4. Kör scriptet **inifrån ett eget deployment på cbhcloud** (inte lokalt — `ducklake-catalog` och `ducklake-garage` är interna Kubernetes-services)
 
 ```python
@@ -92,7 +94,32 @@ con.execute(generated_script)   # klistrar in scriptet från access manager
 df = con.execute("SELECT * FROM passengers LIMIT 10").fetchdf()
 ```
 
-> ⚠️ Scriptet körs INTE lokalt — det körs från ett deployment på kthcloud där `ducklake-catalog` är nåbar.
+`.env`-filen kan laddas ned direkt från nyckeldialogen och innehåller:
+
+```bash
+# PostgreSQL — psycopg2, SQLAlchemy, libpq
+PGHOST=ducklake-catalog
+PGPORT=5432
+PGDATABASE=dl_titanic_2026
+PGUSER=dl_ro_xxxxxxxx
+PGPASSWORD=...
+
+# S3 — boto3, s3fs, DuckDB
+AWS_ACCESS_KEY_ID=GKxxxxxxxx
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=garage
+AWS_ENDPOINT_URL=http://ducklake-garage:3900
+S3_BUCKET=titanic-2026
+```
+
+Ladda den i Python med `python-dotenv`:
+```python
+from dotenv import load_dotenv
+load_dotenv(".env.titanic-2026")
+import os, boto3, psycopg2
+```
+
+> ⚠️ Scriptet och `.env`-filen körs INTE lokalt — de fungerar bara inifrån ett deployment på kthcloud där `ducklake-catalog` och `ducklake-garage` är nåbara.
 
 ---
 
@@ -155,7 +182,7 @@ print(con.execute("SHOW ALL TABLES").df())
 | **Browse** | Alla | Publika datasets + private man har access till. Sök, filtrera, generera nycklar. |
 | **My Keys** | Alla | Egna aktiva nycklar. Admin ser alla med Created By-kolumn. |
 | **Admin → Datasets** | Admin | Skapa/uppdatera/ta bort datasets (bucket + Postgres-DB skapas atomärt). |
-| **Admin → Groups** | Admin | Skapa grupper, lägg till/ta bort medlemmar. |
+| **Admin → Groups** | Admin | Skapa grupper, lägg till/ta bort enskilda medlemmar, eller massimportera via textarea (klistra in e-postlista). |
 | **Admin → Grants** | Admin | Tilldela access: user (e-post), group (dropdown) eller @everyone. |
 
 ### REST API
@@ -183,8 +210,10 @@ GET    /api/groups                Lista alla grupper (med medlemmar)
 GET    /api/groups/{name}         Hämta en grupp med medlemslista
 POST   /api/groups                Skapa grupp — body: {name, description}
 DELETE /api/groups/{name}         Ta bort grupp
-POST   /api/groups/{name}/members Lägg till medlem — body: {email}
-DELETE /api/groups/{name}/members Ta bort medlem — body: {email}
+POST   /api/groups/{name}/members      Lägg till medlem — body: {email}
+POST   /api/groups/{name}/members/bulk Massimportera — body: {text: "a@b.com\nc@d.com"} eller {emails: [...]}
+                                         Returnerar: {added, skipped, invalid}
+DELETE /api/groups/{name}/members      Ta bort medlem — body: {email}
 ```
 
 #### Grants (admin)
@@ -202,6 +231,11 @@ DELETE /api/admin/grants          Återkalla access (samma body-format som POST)
 ```
 POST   /api/keys/generate         Generera nyckel — body: {bucketName, permission}
                                     permission: "read" (default) eller "readwrite" (kräver admin)
+                                    Svar: {s3Key, dbCredentials, duckdbScript, envFile}
+                                      s3Key:         {keyId, secretKey, bucketName, permission, endpoint, region}
+                                      dbCredentials: {host, port, database, username, password}
+                                      duckdbScript:  färdigt SQL-script att köra i DuckDB
+                                      envFile:       .env-fil med PGHOST/AWS_*-variabler (standard library-format)
 GET    /api/keys                  Lista nycklar (admin: alla, annars egna)
 DELETE /api/keys/{keyId}          Ta bort nyckel — ?pgUsername=dl_ro_xxxxxxxx (valfri)
 ```
@@ -374,8 +408,8 @@ Avgörs av JWT-claimet `resource_access.ducklake.roles` — om listan innehålle
 ```bash
 # Använd alltid ny versionstagg — överskrivning av befintlig tag triggar
 # inte ny pull om noden har den cachad (imagePullPolicy: IfNotPresent)
-docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v11 .
-docker push ghcr.io/wildrelation/ducklake-access-manager:v11
+docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v12 .
+docker push ghcr.io/wildrelation/ducklake-access-manager:v12
 ```
 
 Uppdatera sedan image-taggen i cbhcloud-deploymentet.
@@ -483,7 +517,7 @@ GARAGE_S3_REGION   = garage                  ← måste matcha s3_region i garag
 
 **Orsak:** Kubernetes standard-`imagePullPolicy` är `IfNotPresent` — om imagen är cachad på noden dras den inte om.
 
-**Lösning:** Använd alltid ny versionstagg (`:v11`, `:v12` osv.) istället för att överskriva befintlig.
+**Lösning:** Använd alltid ny versionstagg (`:v12`, `:v13` osv.) istället för att överskriva befintlig.
 
 ---
 
