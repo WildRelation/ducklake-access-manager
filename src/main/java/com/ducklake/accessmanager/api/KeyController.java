@@ -124,13 +124,26 @@ public class KeyController {
             default          -> database.createReadOnlyUser(dataset.pgDatabase());
         };
 
-        String keyName = "key-" + request.bucketName() + "|" + dbCreds.username() + "|" + request.permission();
-        AccessKey s3Key = switch (request.permission()) {
-            case "readwrite" -> objectStore.createReadWriteKey(request.bucketName(), keyName);
-            default          -> objectStore.createReadOnlyKey(request.bucketName(), keyName);
-        };
+        // If anything after this point fails, roll back the PG user so it doesn't become orphaned.
+        AccessKey s3Key;
+        try {
+            String keyName = "key-" + request.bucketName() + "|" + dbCreds.username() + "|" + request.permission();
+            s3Key = switch (request.permission()) {
+                case "readwrite" -> objectStore.createReadWriteKey(request.bucketName(), keyName);
+                default          -> objectStore.createReadOnlyKey(request.bucketName(), keyName);
+            };
+        } catch (Exception e) {
+            database.deleteUser(dbCreds.username(), dataset.pgDatabase());
+            throw e;
+        }
 
-        keyMapping.saveMapping(s3Key.keyId(), keycloakSub, displayName, dataset.pgDatabase());
+        try {
+            keyMapping.saveMapping(s3Key.keyId(), keycloakSub, displayName, dataset.pgDatabase());
+        } catch (Exception e) {
+            objectStore.deleteKey(s3Key.keyId());
+            database.deleteUser(dbCreds.username(), dataset.pgDatabase());
+            throw e;
+        }
 
         String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
         String envFile = buildEnvFile(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
