@@ -74,7 +74,17 @@ Tre typer:
 När en student genererar nycklar skapas automatiskt:
 - En S3-nyckel i Garage (read eller readwrite på bucketen)
 - En PostgreSQL-användare i datasetets egna databas (SELECT, eller full DML för readwrite)
-- Ett färdigt DuckDB-script som kopplar ihop allt
+- Ett färdigt DuckDB-script och en `.env`-fil som kopplar ihop allt
+
+Skapandet sker i tre steg med kompensationslogik (saga-pattern):
+
+| Steg | Åtgärd | Om det misslyckas |
+|---|---|---|
+| 1 | Skapa Postgres-användare | — (inga tidigare steg att rulla tillbaka) |
+| 2 | Skapa S3-nyckel i Garage | Radera Postgres-användaren |
+| 3 | Spara mapping i `key_user_mapping` | Radera S3-nyckeln + Postgres-användaren |
+
+Om ett steg misslyckas rensar tjänsten upp alla redan skapade resurser automatiskt. Studenten får ett felmeddelande och inga orphaned resurser lämnas kvar.
 
 ---
 
@@ -408,8 +418,8 @@ Avgörs av JWT-claimet `resource_access.ducklake.roles` — om listan innehålle
 ```bash
 # Använd alltid ny versionstagg — överskrivning av befintlig tag triggar
 # inte ny pull om noden har den cachad (imagePullPolicy: IfNotPresent)
-docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v12 .
-docker push ghcr.io/wildrelation/ducklake-access-manager:v12
+docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v13 .
+docker push ghcr.io/wildrelation/ducklake-access-manager:v13
 ```
 
 Uppdatera sedan image-taggen i cbhcloud-deploymentet.
@@ -517,7 +527,7 @@ GARAGE_S3_REGION   = garage                  ← måste matcha s3_region i garag
 
 **Orsak:** Kubernetes standard-`imagePullPolicy` är `IfNotPresent` — om imagen är cachad på noden dras den inte om.
 
-**Lösning:** Använd alltid ny versionstagg (`:v12`, `:v13` osv.) istället för att överskriva befintlig.
+**Lösning:** Använd alltid ny versionstagg (`:v13`, `:v14` osv.) istället för att överskriva befintlig.
 
 ---
 
