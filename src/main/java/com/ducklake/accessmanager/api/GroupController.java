@@ -12,6 +12,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Group CRUD endpoints.
@@ -87,6 +89,34 @@ public class GroupController {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
+    }
+
+    /**
+     * Bulk-import members from a newline/comma/semicolon-separated list of emails.
+     * Accepts {"emails": ["a@b.com", ...]} or {"text": "a@b.com\nb@c.com\n..."}.
+     * Returns {"added": N, "skipped": N, "invalid": N}.
+     */
+    @PostMapping("/{name}/members/bulk")
+    public ResponseEntity<Map<String, Integer>> bulkAddMembers(
+        @PathVariable String name,
+        @RequestBody Map<String, Object> body,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        requireAdmin(jwt);
+        List<String> emails;
+        if (body.containsKey("emails")) {
+            @SuppressWarnings("unchecked")
+            List<String> raw = (List<String>) body.get("emails");
+            emails = raw;
+        } else {
+            String text = (String) body.getOrDefault("text", "");
+            emails = Arrays.stream(text.split("[\\n,;]+"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        }
+        Map<String, Integer> result = groups.addMembers(name, emails);
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{name}/members")

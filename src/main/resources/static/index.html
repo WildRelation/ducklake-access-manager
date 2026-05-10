@@ -530,6 +530,9 @@ function GroupsAdmin({ token }) {
   const [creating, setCreating] = useState(false);
   const [expanded, setExpanded] = useState({});         // groupName -> bool
   const [memberInputs, setInputs] = useState({});       // groupName -> email being typed
+  const [bulkInputs, setBulkInputs] = useState({});    // groupName -> textarea text
+  const [bulkResults, setBulkResults] = useState({});  // groupName -> {added,skipped,invalid}
+  const [bulkLoading, setBulkLoading] = useState({});  // groupName -> bool
 
   const authFetch = useCallback((url, opts={}) =>
     fetch(url, { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${token}` } }), [token]);
@@ -581,6 +584,25 @@ function GroupsAdmin({ token }) {
     await load();
   };
 
+  const handleBulkImport = async (groupName) => {
+    const text = (bulkInputs[groupName] || '').trim();
+    if (!text) return;
+    setBulkLoading(p => ({ ...p, [groupName]: true }));
+    setBulkResults(p => ({ ...p, [groupName]: null }));
+    try {
+      const res = await authFetch(`/api/groups/${encodeURIComponent(groupName)}/members/bulk`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text })
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert('Error: ' + (e.message || `HTTP ${res.status}`)); return; }
+      const result = await res.json();
+      setBulkResults(p => ({ ...p, [groupName]: result }));
+      setBulkInputs(p => ({ ...p, [groupName]: '' }));
+      await load();
+    } finally {
+      setBulkLoading(p => ({ ...p, [groupName]: false }));
+    }
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:24 }}>
@@ -623,12 +645,41 @@ function GroupsAdmin({ token }) {
               </div>
               {expanded[g.name] && (
                 <div style={{ padding:'0 20px 20px', background:'rgba(255,255,255,.012)' }}>
-                  <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                  {/* Single add */}
+                  <div style={{ display:'flex', gap:8, marginBottom:8 }}>
                     <input value={memberInputs[g.name] || ''} onChange={e => setInputs(p => ({ ...p, [g.name]: e.target.value }))}
                       placeholder="email@kth.se" style={{ ...inputStyle, flex:1 }} onFocus={focusAccent} onBlur={blurBorder}
                       onKeyDown={e => e.key === 'Enter' && handleAddMember(g.name)} />
                     <button onClick={() => handleAddMember(g.name)} style={btnPrimary}><Icon name="plus" size={13} /> Add</button>
                   </div>
+                  {/* Bulk import */}
+                  <div style={{ marginBottom:14, border:'1px solid var(--border)', borderRadius:10, padding:12 }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--fg2)', marginBottom:8 }}>Bulk import — paste one email per line (or comma/semicolon separated)</div>
+                    <textarea
+                      value={bulkInputs[g.name] || ''}
+                      onChange={e => setBulkInputs(p => ({ ...p, [g.name]: e.target.value }))}
+                      placeholder={"student1@kth.se\nstudent2@kth.se\nstudent3@kth.se"}
+                      rows={4}
+                      style={{ ...inputStyle, resize:'vertical', fontFamily:'var(--mono)', fontSize:12 }}
+                      onFocus={focusAccent} onBlur={blurBorder}
+                    />
+                    <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:8 }}>
+                      <button
+                        onClick={() => handleBulkImport(g.name)}
+                        disabled={bulkLoading[g.name] || !(bulkInputs[g.name] || '').trim()}
+                        style={{ ...btnPrimary, opacity: bulkLoading[g.name] || !(bulkInputs[g.name] || '').trim() ? .6 : 1 }}>
+                        {bulkLoading[g.name] ? <Spinner size={13} color="#0d1117" /> : <Icon name="users" size={13} />} Import
+                      </button>
+                      {bulkResults[g.name] && (
+                        <div style={{ fontSize:12, color:'var(--fg2)' }}>
+                          <span style={{ color:'var(--green)' }}>✓ {bulkResults[g.name].added} added</span>
+                          {bulkResults[g.name].skipped > 0 && <span style={{ marginLeft:8, color:'var(--fg3)' }}>{bulkResults[g.name].skipped} already members</span>}
+                          {bulkResults[g.name].invalid > 0 && <span style={{ marginLeft:8, color:'var(--red)' }}>{bulkResults[g.name].invalid} invalid</span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Member list */}
                   {g.members.length === 0 ? <div style={{ fontSize:12, color:'var(--fg3)' }}>No members yet.</div>
                   : <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
                       {g.members.map(email => (

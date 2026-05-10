@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * CRUD for {@code groups} and {@code group_members}. The tables themselves
@@ -72,6 +73,27 @@ public class GroupService {
             "ON CONFLICT DO NOTHING",
             groupName, email
         );
+    }
+
+    /**
+     * Bulk-add members. Skips blank lines and already-existing members (idempotent).
+     * Invalid emails (no "@") are counted but not inserted.
+     * Returns a summary map with keys "added", "skipped", "invalid".
+     */
+    public Map<String, Integer> addMembers(String groupName, List<String> emails) {
+        validateGroupName(groupName);
+        int added = 0, skipped = 0, invalid = 0;
+        for (String raw : emails) {
+            String email = raw.trim();
+            if (email.isEmpty()) continue;
+            if (!email.contains("@")) { invalid++; continue; }
+            int rows = jdbc.update(
+                "INSERT INTO group_members (group_name, member_email) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                groupName, email
+            );
+            if (rows > 0) added++; else skipped++;
+        }
+        return Map.of("added", added, "skipped", skipped, "invalid", invalid);
     }
 
     public void removeMember(String groupName, String email) {
