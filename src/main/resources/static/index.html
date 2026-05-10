@@ -91,7 +91,8 @@ const Icon = ({ name, size=16 }) => ({
   plus:    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   bucket:  <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M3 4h10l-1.5 9H4.5L3 4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M1.5 4h13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><path d="M6 4V2.5h4V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>,
   refresh: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.86 4.4 2.2L14 3v4h-4l1.7-1.7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  users:   <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M1 13c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M14 13c0-1.66-.9-3.13-2.24-3.92" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>,
+  users:    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M1 13c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M14 13c0-1.66-.9-3.13-2.24-3.92" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>,
+  download: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
 }[name] || null);
 
 function Spinner({ size=18, color='var(--accent)' }) {
@@ -126,7 +127,16 @@ function CredRow({ label, value, secret }) {
 /* ── CredModal — same as before ── */
 function CredModal({ creds, onClose }) {
   useEffect(() => { const h = e => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, [onClose]);
-  const { s3Key, dbCredentials: db, duckdbScript } = creds;
+  const { s3Key, dbCredentials: db, duckdbScript, envFile } = creds;
+  function downloadEnv() {
+    const blob = new Blob([envFile], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `.env.${s3Key.bucketName}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-inner" style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:'100%', maxWidth:720, maxHeight:'92vh', overflow:'hidden', display:'flex', flexDirection:'column', animation:'slideUp .2s ease', boxShadow:'0 32px 64px rgba(0,0,0,.6)' }}>
@@ -173,7 +183,8 @@ function CredModal({ creds, onClose }) {
           </div>
         </div>
 
-        <div style={{ padding:'16px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', flexShrink:0 }}>
+        <div style={{ padding:'16px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <button onClick={downloadEnv} style={{ ...btnSecondary, display:'flex', alignItems:'center', gap:6 }}><Icon name="download" size={14} /> Download .env</button>
           <button onClick={onClose} style={btnSecondary}>Close</button>
         </div>
       </div>

@@ -133,7 +133,8 @@ public class KeyController {
         keyMapping.saveMapping(s3Key.keyId(), keycloakSub, displayName, dataset.pgDatabase());
 
         String script = buildDuckdbScript(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
-        return ResponseEntity.ok(new GeneratedCredentials(s3Key, dbCreds, script));
+        String envFile = buildEnvFile(s3Key, dbCreds, request.bucketName(), postgresPublicHost);
+        return ResponseEntity.ok(new GeneratedCredentials(s3Key, dbCreds, script, envFile));
     }
 
     /**
@@ -209,6 +210,29 @@ public class KeyController {
         }
 
         return ResponseEntity.noContent().build();
+    }
+
+    private String buildEnvFile(AccessKey s3Key, DbCredentials db, String bucketName, String pgHost) {
+        String endpointUrl = s3Key.endpoint().startsWith("http") ? s3Key.endpoint()
+                                                                  : "http://" + s3Key.endpoint();
+        return """
+            # PostgreSQL — compatible with psycopg2, SQLAlchemy, libpq
+            PGHOST=%s
+            PGPORT=%d
+            PGDATABASE=%s
+            PGUSER=%s
+            PGPASSWORD=%s
+
+            # S3 — compatible with boto3, s3fs, DuckDB
+            AWS_ACCESS_KEY_ID=%s
+            AWS_SECRET_ACCESS_KEY=%s
+            AWS_DEFAULT_REGION=%s
+            AWS_ENDPOINT_URL=%s
+            S3_BUCKET=%s
+            """.formatted(
+                pgHost, db.port(), db.database(), db.username(), db.password(),
+                s3Key.keyId(), s3Key.secretKey(), s3Key.region(), endpointUrl, bucketName
+        );
     }
 
     /**
