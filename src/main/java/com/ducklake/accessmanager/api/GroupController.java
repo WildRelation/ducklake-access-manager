@@ -2,7 +2,9 @@ package com.ducklake.accessmanager.api;
 
 import com.ducklake.accessmanager.config.SecurityConfig;
 import com.ducklake.accessmanager.model.Group;
+import com.ducklake.accessmanager.service.impl.AccessService;
 import com.ducklake.accessmanager.service.impl.GroupService;
+import com.ducklake.accessmanager.service.impl.KeyCleanupService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,9 +36,13 @@ import java.util.stream.Collectors;
 public class GroupController {
 
     private final GroupService groups;
+    private final AccessService accessService;
+    private final KeyCleanupService keyCleanup;
 
-    public GroupController(GroupService groups) {
+    public GroupController(GroupService groups, AccessService accessService, KeyCleanupService keyCleanup) {
         this.groups = groups;
+        this.accessService = accessService;
+        this.keyCleanup = keyCleanup;
     }
 
     @GetMapping
@@ -126,7 +132,12 @@ public class GroupController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         requireAdmin(jwt);
-        groups.removeMember(name, body.get("email"));
+        String email = body.get("email");
+        groups.removeMember(name, email);
+        List<String> groupBuckets = accessService.bucketsForGroup(name);
+        for (String bucket : groupBuckets) {
+            keyCleanup.revokeKeysForEmailsOnBucket(List.of(email), bucket);
+        }
         return ResponseEntity.noContent().build();
     }
 

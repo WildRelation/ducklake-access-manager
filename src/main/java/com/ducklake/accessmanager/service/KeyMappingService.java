@@ -18,6 +18,7 @@ public interface KeyMappingService {
     /** Returns the per-dataset Postgres DB the key's PG user belongs to, or null for legacy rows. */
     String findDatabase(String garageKeyId);
     List<String> findKeyIdsForUser(String keycloakUser);
+    List<String> findKeyIdsByDisplayNames(List<String> displayNames);
     Map<String, String> findDisplayNames(List<String> keyIds);
     Map<String, String> findCreatedAts(List<String> keyIds);
     void deleteMapping(String garageKeyId);

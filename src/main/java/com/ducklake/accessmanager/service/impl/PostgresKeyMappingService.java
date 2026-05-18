@@ -66,6 +66,16 @@ public class PostgresKeyMappingService implements KeyMappingService {
     }
 
     @Override
+    public List<String> findKeyIdsByDisplayNames(List<String> displayNames) {
+        if (displayNames.isEmpty()) return List.of();
+        String placeholders = String.join(",", Collections.nCopies(displayNames.size(), "?"));
+        return jdbc.queryForList(
+            "SELECT garage_key_id FROM key_user_mapping WHERE display_name IN (" + placeholders + ")",
+            String.class, displayNames.toArray()
+        );
+    }
+
+    @Override
     public Map<String, String> findDisplayNames(List<String> keyIds) {
         if (keyIds.isEmpty()) return Map.of();
         String placeholders = String.join(",", Collections.nCopies(keyIds.size(), "?"));

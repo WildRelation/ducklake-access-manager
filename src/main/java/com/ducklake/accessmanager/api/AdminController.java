@@ -3,8 +3,11 @@ package com.ducklake.accessmanager.api;
 import com.ducklake.accessmanager.config.SecurityConfig;
 import com.ducklake.accessmanager.model.Bucket;
 import com.ducklake.accessmanager.model.Grant;
+import com.ducklake.accessmanager.model.Group;
 import com.ducklake.accessmanager.service.ObjectStoreAccessTokenManager;
 import com.ducklake.accessmanager.service.impl.AccessService;
+import com.ducklake.accessmanager.service.impl.GroupService;
+import com.ducklake.accessmanager.service.impl.KeyCleanupService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -26,10 +29,19 @@ public class AdminController {
 
     private final ObjectStoreAccessTokenManager objectStore;
     private final AccessService accessService;
+    private final GroupService groupService;
+    private final KeyCleanupService keyCleanup;
 
-    public AdminController(ObjectStoreAccessTokenManager objectStore, AccessService accessService) {
+    public AdminController(
+        ObjectStoreAccessTokenManager objectStore,
+        AccessService accessService,
+        GroupService groupService,
+        KeyCleanupService keyCleanup
+    ) {
         this.objectStore = objectStore;
         this.accessService = accessService;
+        this.groupService = groupService;
+        this.keyCleanup = keyCleanup;
     }
 
     // ── Buckets (sourced from Garage) ─────────────────────────────────────
@@ -142,7 +154,9 @@ public class AdminController {
 
         // Legacy shape
         if (body.containsKey("studentEmail") && !body.get("studentEmail").isBlank()) {
-            accessService.revokeUser(body.get("studentEmail"), bucketName);
+            String email = body.get("studentEmail");
+            accessService.revokeUser(email, bucketName);
+            keyCleanup.revokeKeysForEmailsOnBucket(List.of(email), bucketName);
             return ResponseEntity.noContent().build();
         }
 
@@ -150,6 +164,17 @@ public class AdminController {
         String id   = body.get("principalId");
         if (type == null) return ResponseEntity.badRequest().build();
         accessService.revoke(type, id, bucketName);
+
+        switch (type) {
+            case AccessService.TYPE_USER -> keyCleanup.revokeKeysForEmailsOnBucket(List.of(id), bucketName);
+            case AccessService.TYPE_GROUP -> {
+                Group g = groupService.findByName(id);
+                if (g != null && !g.members().isEmpty()) {
+                    keyCleanup.revokeKeysForEmailsOnBucket(g.members(), bucketName);
+                }
+            }
+            // everyone: skip — revoking access for all users is too destructive to do silently
+        }
         return ResponseEntity.noContent().build();
     }
 

@@ -197,6 +197,13 @@ public class AccessService {
         );
     }
 
+    public List<String> bucketsForGroup(String groupName) {
+        return jdbc.queryForList(
+            "SELECT bucket_name FROM dataset_grants WHERE principal_type = 'group' AND principal_id = ?",
+            String.class, groupName
+        );
+    }
+
     public void grantGroup(String groupName, String bucketName) {
         jdbc.update(
             "INSERT INTO dataset_grants (bucket_name, principal_type, principal_id) " +
