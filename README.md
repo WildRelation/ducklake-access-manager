@@ -86,6 +86,19 @@ Skapandet sker i tre steg med kompensationslogik (saga-pattern):
 
 Om ett steg misslyckas rensar tjänsten upp alla redan skapade resurser automatiskt. Studenten får ett felmeddelande och inga orphaned resurser lämnas kvar.
 
+### Automatisk nyckelrensning vid grant-återkallelse
+
+När ett grant återkallas eller en student tas bort ur en grupp raderas alla berörda nycklar automatiskt — studenten ser dem inte längre i **My Keys** och kan inte längre ansluta.
+
+| Admin-åtgärd | Vad raderas automatiskt |
+|---|---|
+| Ta bort `user`-grant | Studentens nycklar för den bucketen (Garage + PG-användare + mapping) |
+| Ta bort `group`-grant | Alla gruppmedlemmars nycklar för den bucketen |
+| Ta bort en student ur en grupp | Studentens nycklar för alla buckets gruppen har access till |
+| Ta bort `everyone`-grant | Inget — för destruktivt att göra tyst; radera nycklar manuellt vid behov |
+
+Rensningen är *best-effort*: fel vid enskilda borttagningar loggas men stoppar inte grant-återkallelsen.
+
 ---
 
 ## Hur studenter använder tjänsten
@@ -307,6 +320,7 @@ src/main/java/com/ducklake/accessmanager/
 │       ├── DatasetService.java              # Dataset CRUD + atomär bucket+DB-livscykel + startup-sync
 │       ├── GarageAccessTokenManager.java    # Garage Admin API v2 (HTTP mot port 3900)
 │       ├── GroupService.java                # groups + group_members CRUD
+│       ├── KeyCleanupService.java           # Automatisk nyckelrensning vid grant-återkallelse
 │       ├── PostgresAccessTokenManager.java  # JDBC: skapar dl_ro_/dl_rw_-användare per dataset-DB
 │       ├── PostgresAdminOps.java            # CREATE/DROP DATABASE, jdbcFor(db) för in-database grants
 │       └── PostgresKeyMappingService.java   # key_user_mapping-tabell i PostgreSQL
@@ -418,8 +432,8 @@ Avgörs av JWT-claimet `resource_access.ducklake.roles` — om listan innehålle
 ```bash
 # Använd alltid ny versionstagg — överskrivning av befintlig tag triggar
 # inte ny pull om noden har den cachad (imagePullPolicy: IfNotPresent)
-docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v13 .
-docker push ghcr.io/wildrelation/ducklake-access-manager:v13
+docker build --network=host -t ghcr.io/wildrelation/ducklake-access-manager:v14 .
+docker push ghcr.io/wildrelation/ducklake-access-manager:v14
 ```
 
 Uppdatera sedan image-taggen i cbhcloud-deploymentet.
@@ -527,7 +541,7 @@ GARAGE_S3_REGION   = garage                  ← måste matcha s3_region i garag
 
 **Orsak:** Kubernetes standard-`imagePullPolicy` är `IfNotPresent` — om imagen är cachad på noden dras den inte om.
 
-**Lösning:** Använd alltid ny versionstagg (`:v13`, `:v14` osv.) istället för att överskriva befintlig.
+**Lösning:** Använd alltid ny versionstagg (`:v14`, `:v15` osv.) istället för att överskriva befintlig.
 
 ---
 
