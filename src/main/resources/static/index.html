@@ -495,7 +495,8 @@ function DatasetsAdmin({ token }) {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
           <div>
             <label style={{ display:'block', fontSize:12, fontWeight:500, color:'var(--fg2)', marginBottom:6 }}>Bucket Name</label>
-            <input value={bucketName} onChange={e => setBucket(e.target.value)} placeholder="titanic-2026" style={{ ...inputStyle, fontFamily:'var(--mono)' }} onFocus={focusAccent} onBlur={blurBorder} />
+            <input value={bucketName} onChange={e => setBucket(e.target.value.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,''))} placeholder="titanic-2026" style={{ ...inputStyle, fontFamily:'var(--mono)' }} onFocus={focusAccent} onBlur={blurBorder} />
+            <div style={{ fontSize:11, color:'var(--fg3)', marginTop:4 }}>lowercase · digits · hyphens · 3–60 chars · no leading/trailing hyphen</div>
           </div>
           <div>
             <label style={{ display:'block', fontSize:12, fontWeight:500, color:'var(--fg2)', marginBottom:6 }}>Title</label>
@@ -636,7 +637,8 @@ function GroupsAdmin({ token }) {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:12, alignItems:'flex-end' }}>
           <div>
             <label style={{ display:'block', fontSize:12, fontWeight:500, color:'var(--fg2)', marginBottom:6 }}>Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="dd2476-vt26" style={{ ...inputStyle, fontFamily:'var(--mono)' }} onFocus={focusAccent} onBlur={blurBorder} />
+            <input value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,''))} placeholder="dd2476-vt26" style={{ ...inputStyle, fontFamily:'var(--mono)' }} onFocus={focusAccent} onBlur={blurBorder} />
+            <div style={{ fontSize:11, color:'var(--fg3)', marginTop:4 }}>lowercase · digits · hyphens · no leading/trailing hyphen</div>
           </div>
           <div>
             <label style={{ display:'block', fontSize:12, fontWeight:500, color:'var(--fg2)', marginBottom:6 }}>Description</label>

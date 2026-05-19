@@ -124,10 +124,10 @@ public class GroupService {
     }
 
     private static void validateGroupName(String name) {
-        if (name == null || !name.matches("[a-z0-9][a-z0-9\\-]{0,59}")) {
+        if (name == null || !name.matches("[a-z0-9]([a-z0-9\\-]{0,58}[a-z0-9])?")) {
             throw new IllegalArgumentException(
                 "Invalid group name. Must be 1-60 lowercase chars, digits or hyphens, " +
-                "starting with a letter or digit. Got: " + name
+                "starting and ending with a letter or digit. Got: " + name
             );
         }
     }
