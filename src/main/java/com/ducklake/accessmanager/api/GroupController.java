@@ -78,6 +78,13 @@ public class GroupController {
     @DeleteMapping("/{name}")
     public ResponseEntity<Void> delete(@PathVariable String name, @AuthenticationPrincipal Jwt jwt) {
         requireAdmin(jwt);
+        Group group = groups.findByName(name);
+        if (group != null && !group.members().isEmpty()) {
+            List<String> buckets = accessService.bucketsForGroup(name);
+            for (String bucket : buckets) {
+                keyCleanup.revokeKeysForEmailsOnBucket(group.members(), bucket);
+            }
+        }
         groups.delete(name);
         return ResponseEntity.noContent().build();
     }
