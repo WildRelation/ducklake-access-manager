@@ -25,6 +25,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.util.List;
 import java.util.Map;
 
@@ -116,6 +119,17 @@ public class KeyController {
             || accessService.hasAccess(displayName, request.bucketName());
         if (!canRead) {
             return ResponseEntity.status(403).build();
+        }
+
+        // Students are limited to one active key per dataset.
+        if (!admin) {
+            List<String> ownedIds = keyMapping.findKeyIdsForUser(keycloakSub);
+            boolean alreadyHasKey = objectStore.listKeys().stream()
+                .anyMatch(k -> request.bucketName().equals(k.bucketName()) && ownedIds.contains(k.keyId()));
+            if (alreadyHasKey) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "You already have an active key for this dataset. Delete it first.");
+            }
         }
 
         // PG user is created in the dataset's own DB — full isolation between datasets.
